@@ -81,3 +81,68 @@ body {
     text-align: center;
     font-size: 14px;
 }
+/* адаптивная вёрстка для мобильных устройств */
+@media (max-width: 768px) {
+    body {
+        font-size: 14px;
+    }
+    
+    .glass-card {
+        padding: 16px;
+        border-radius: 12px;
+        margin: 10px !important;
+    }
+    
+    /* боковое меню на мобильных */
+    #dashboard-root > div:first-child {
+        width: 100% !important;
+        height: auto !important;
+        margin: 10px !important;
+    }
+    
+    /* контент на всю ширину */
+    #dashboard-root > div:last-child {
+        padding: 10px !important;
+    }
+    
+    /* таблица с прокруткой */
+    table {
+        font-size: 13px;
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    
+    th, td {
+        padding: 8px !important;
+    }
+    
+    /* кнопки в столбик */
+    .btn {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+    
+    /* форма в одну колонку */
+    form {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* скрытие второстепенных элементов */
+    .hide-mobile {
+        display: none;
+    }
+}
+
+/* фокус для доступности */
+.input:focus,
+.btn:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* плавные переходы */
+* {
+    transition: background-color 0.2s, border-color 0.2s;
+}
