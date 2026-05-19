@@ -1,0 +1,191 @@
+/* импорт премиальных шрифтов */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+    --bg-main: #F9F7F2;
+    --bg-sidebar: #F3EFE6;
+    --bg-card: #FFFFFF;
+    --text-primary: #1A1A1A;
+    --text-secondary: #7A7A7A;
+    --accent-color: #1A1A1A;
+    --border-color: #E5E0D5;
+    --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.04);
+    --hover-bg: #EBE6DC;
+}
+
+/* общие стили для страницы */
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* заголовки с засечками */
+h1,
+h2,
+h3,
+h4 {
+    font-family: 'Playfair Display', serif;
+    margin: 0 0 20px 0;
+    letter-spacing: 0.5px;
+}
+
+/* стиль карточек */
+.glass-card {
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--shadow-soft);
+    border: 1px solid var(--border-color);
+    margin-bottom: 24px;
+    transition: transform 0.2s;
+}
+
+/* кнопки в стиле люкс */
+.btn {
+    background: var(--accent-color);
+    color: #FFFFFF;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: opacity 0.2s, transform 0.1s;
+}
+
+.btn:hover {
+    opacity: 0.85;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+/* поля ввода */
+.input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-main);
+    margin-bottom: 16px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: var(--text-primary);
+    box-sizing: border-box;
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    background: #FFFFFF;
+}
+
+/* таблицы */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+th {
+    text-align: left;
+    padding: 16px 12px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+td {
+    padding: 16px 12px;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+
+tr:last-child td {
+    border-bottom: none;
+}
+
+tr:hover td {
+    background: var(--hover-bg);
+}
+
+/* бейджи оценок (кругляшки) */
+.grade-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-weight: 600;
+    font-size: 14px;
+    background: var(--bg-main);
+}
+
+.grade-5 {
+    background: #E8F5E9;
+    color: #2E7D32;
+}
+
+.grade-4 {
+    background: #E3F2FD;
+    color: #1976D2;
+}
+
+.grade-3 {
+    background: #FFF3E0;
+    color: #F57C00;
+}
+
+.grade-2 {
+    background: #FFEBEE;
+    color: #D32F2F;
+}
+
+/* утилиты */
+.spinner {
+    border: 3px solid var(--border-color);
+    border-top: 3px solid var(--accent-color);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 40px auto;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.error-msg {
+    background: #FFEBEE;
+    color: #D32F2F;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    text-align: center;
+}
