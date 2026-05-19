@@ -35,6 +35,7 @@ const Analytics = () => {
         )
 
     return React.createElement('div', { style: { color: 'white' } },
+        React.createElement(ExportButton, { data: stats.classesAvg, filename: 'analitika_klassy.csv' }),
         React.createElement('h2', { style: { color: 'white', marginBottom: '20px' } }, 'Аналитика успеваемости'),
         
         // верхний ряд карточек
