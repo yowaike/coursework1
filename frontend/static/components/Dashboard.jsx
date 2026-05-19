@@ -19,25 +19,28 @@ const Dashboard = () => {
 
     // функция для рендера контента
     const renderContent = () => {
-        return React.createElement('div', { className: 'glass-card' },
+        if (activeTab === 'students') {
+            return React.createElement(StudentList)
+        }
+        return React.createElement('div', { className: 'glass-card', style: { color: 'white' } },
             React.createElement('h2', null, 'Раздел: ' + activeTab),
-            React.createElement('p', null, 'Здесь будет таблица с данными для раздела ' + activeTab)
+            React.createElement('p', null, 'Контент для этого раздела скоро появится.')
         )
     }
 
     return React.createElement('div', { style: { display: 'flex', minHeight: '100vh' } },
         // боковое меню
-        React.createElement('div', { 
-            className: 'glass-card', 
-            style: { width: '250px', margin: '20px', height: 'calc(100vh - 40px)' } 
+        React.createElement('div', {
+            className: 'glass-card',
+            style: { width: '250px', margin: '20px', height: 'calc(100vh - 40px)' }
         },
             React.createElement('h3', { style: { color: 'white' } }, 'Меню'),
-            menuItems.map(item => 
+            menuItems.map(item =>
                 React.createElement('div', {
                     key: item.id,
                     onClick: () => setActiveTab(item.id),
-                    style: { 
-                        padding: '10px', 
+                    style: {
+                        padding: '10px',
                         cursor: 'pointer',
                         background: activeTab === item.id ? 'rgba(255,255,255,0.3)' : 'transparent',
                         borderRadius: '8px',
@@ -45,10 +48,10 @@ const Dashboard = () => {
                     }
                 }, item.label)
             ),
-            React.createElement('button', { 
-                className: 'btn', 
+            React.createElement('button', {
+                className: 'btn',
                 style: { width: '100%', marginTop: '20px', background: '#e74c3c' },
-                onClick: handleLogout 
+                onClick: handleLogout
             }, 'Выйти')
         ),
         // основной контент
