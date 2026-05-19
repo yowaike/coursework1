@@ -13,6 +13,7 @@ const Dashboard = () => {
         { id: 'profile', label: 'Профиль' },
         { id: 'students', label: 'Ученики' },
         { id: 'teachers', label: 'Учителя' },
+        { id: 'schedule', label: 'Расписание' },
         { id: 'grades', label: 'Оценки' },
         { id: 'analytics', label: 'Аналитика' }
     ]
@@ -21,8 +22,9 @@ const Dashboard = () => {
     const renderContent = () => {
         if (activeTab === 'students') return React.createElement(StudentList)
         if (activeTab === 'teachers') return React.createElement(TeacherList)
-        if (activeTab === 'analytics') return React.createElement(Analytics)
         if (activeTab === 'schedule') return React.createElement(ScheduleList)
+        if (activeTab === 'grades') return React.createElement(GradeBook)
+        if (activeTab === 'analytics') return React.createElement(Analytics)
 
         return React.createElement('div', { className: 'glass-card', style: { color: 'white' } },
             React.createElement('h2', null, 'Раздел: ' + activeTab),
