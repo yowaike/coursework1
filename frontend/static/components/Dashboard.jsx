@@ -19,15 +19,11 @@ const Dashboard = () => {
 
     // функция для рендера контента
     const renderContent = () => {
-        if (activeTab === 'students') {
-            return React.createElement(StudentList)
-        }
-        if (activeTab === 'teachers') {
-            return React.createElement(TeacherList)
-        }
-        if (activeTab === 'analytics') {
-            return React.createElement(Analytics)
-        }
+        if (activeTab === 'students') return React.createElement(StudentList)
+        if (activeTab === 'teachers') return React.createElement(TeacherList)
+        if (activeTab === 'analytics') return React.createElement(Analytics)
+        if (activeTab === 'schedule') return React.createElement(ScheduleList)
+
         return React.createElement('div', { className: 'glass-card', style: { color: 'white' } },
             React.createElement('h2', null, 'Раздел: ' + activeTab),
             React.createElement('p', null, 'Контент для этого раздела скоро появится.')
