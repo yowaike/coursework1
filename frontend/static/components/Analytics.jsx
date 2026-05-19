@@ -1,4 +1,4 @@
-// компонент аналитики с карточками статистики
+// компонент аналитики в премиальном стиле
 const Analytics = () => {
     const [stats, setStats] = React.useState({
         failing: 0,
@@ -6,60 +6,88 @@ const Analytics = () => {
         worstClass: null,
         classesAvg: []
     })
+    const [loading, setLoading] = React.useState(true)
 
     React.useEffect(() => {
         //функция для загрузки аналитики
-        const loadStats = async () => {
-            const failing = await fetch('/api/analytics/failing').then(r => r.json())
-            const extreme = await fetch('/api/analytics/best_worst_class').then(r => r.json())
-            const classes = await fetch('/api/analytics/classes_avg').then(r => r.json())
-            
+        Promise.all([
+            fetch('/api/analytics/failing'),
+            fetch('/api/analytics/best_worst_class'),
+            fetch('/api/analytics/classes_avg')
+        ])
+        .then(responses => Promise.all(responses.map(r => r.json())))
+        .then(([failingData, extremeData, classesData]) => {
             setStats({
-                failing: failing.failing_count,
-                bestClass: extreme.best,
-                worstClass: extreme.worst,
-                classesAvg: classes
+                failing: failingData.failing_count,
+                bestClass: extremeData.best,
+                worstClass: extremeData.worst,
+                classesAvg: classesData || []
             })
-        }
-        loadStats()
+            setLoading(false)
+        })
+        .catch(() => setLoading(false))
     }, [])
 
-    //функция для рендера карточки
-    const StatCard = ({ title, value, color }) => 
-        React.createElement('div', { 
-            className: 'glass-card', 
-            style: { flex: 1, minWidth: '200px', background: color || 'rgba(255,255,255,0.1)' } 
-        },
-            React.createElement('h4', { style: { margin: '0 0 10px 0', color: 'white', opacity: 0.9 } }, title),
-            React.createElement('div', { style: { fontSize: '32px', fontWeight: 'bold', color: 'white' } }, value)
-        )
+    if (loading) return React.createElement('div', { className: 'spinner' })
 
-    return React.createElement('div', { style: { color: 'white' } },
-        React.createElement(ExportButton, { data: stats.classesAvg, filename: 'analitika_klassy.csv' }),
-        React.createElement('h2', { style: { color: 'white', marginBottom: '20px' } }, 'Аналитика успеваемости'),
-        
-        // верхний ряд карточек
-        React.createElement('div', { style: { display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' } },
-            React.createElement(StatCard, { title: 'Неуспевающих (2)', value: stats.failing, color: 'rgba(231, 76, 60, 0.3)' }),
-            stats.bestClass && React.createElement(StatCard, { title: 'Лучший класс', value: `${stats.bestClass.class} (${stats.bestClass.avg})`, color: 'rgba(46, 204, 113, 0.3)' }),
-            stats.worstClass && React.createElement(StatCard, { title: 'Худший класс', value: `${stats.worstClass.class} (${stats.worstClass.avg})`, color: 'rgba(231, 76, 60, 0.3)' })
+    return React.createElement('div', null,
+        // заголовок
+        React.createElement('div', { style: { marginBottom: '32px' } },
+            React.createElement('h1', { style: { fontSize: '36px', marginBottom: '8px' } }, 'АНАЛИТИКА'),
+            React.createElement('p', { style: { color: 'var(--text-secondary)', margin: 0 } }, 'Сводные данные по школе')
         ),
 
-        // таблица средних оценок по классам
+        // карточки со статистикой
+        React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px', marginBottom: '40px' } },
+            // Лучший класс
+            React.createElement('div', { className: 'glass-card' },
+                React.createElement('span', { style: { display: 'block', fontSize: '13px', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '10px' } }, 'Лучший класс'),
+                React.createElement('h2', { style: { fontSize: '48px', margin: '10px 0', color: 'var(--accent-color)' } }, stats.bestClass ? stats.bestClass.class : '—'),
+                stats.bestClass && React.createElement('span', { style: { fontSize: '14px', color: '#2E7D32', fontWeight: 600 } }, `Средний балл: ${stats.bestClass.avg}`)
+            ),
+            
+            // Худший класс
+            React.createElement('div', { className: 'glass-card' },
+                React.createElement('span', { style: { display: 'block', fontSize: '13px', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '10px' } }, 'Требует внимания'),
+                React.createElement('h2', { style: { fontSize: '48px', margin: '10px 0', color: '#D32F2F' } }, stats.worstClass ? stats.worstClass.class : '—'),
+                stats.worstClass && React.createElement('span', { style: { fontSize: '14px', color: '#7A7A7A' } }, `Средний балл: ${stats.worstClass.avg}`)
+            ),
+
+            // Неуспевающие
+            React.createElement('div', { className: 'glass-card' },
+                React.createElement('span', { style: { display: 'block', fontSize: '13px', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '10px' } }, 'Неуспевающих (2)'),
+                React.createElement('h2', { style: { fontSize: '48px', margin: '10px 0', color: 'var(--text-primary)' } }, stats.failing),
+                React.createElement('span', { style: { fontSize: '14px', color: '#7A7A7A' } }, 'учеников по школе')
+            )
+        ),
+
+        // таблица успеваемости по классам
         React.createElement('div', { className: 'glass-card' },
-            React.createElement('h3', { style: { color: 'white', marginTop: 0 } }, 'Средняя успеваемость по классам'),
-            React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse', color: 'white' } },
+            React.createElement('h3', { style: { fontSize: '20px', marginBottom: '24px' } }, 'Средняя успеваемость по классам'),
+            React.createElement('table', null,
                 React.createElement('thead', null,
-                    React.createElement('tr', { style: { borderBottom: '2px solid rgba(255,255,255,0.3)' } },
-                        React.createElement('th', { style: { textAlign: 'left', padding: '10px' } }, 'Класс'),
-                        React.createElement('th', { style: { textAlign: 'left', padding: '10px' } }, 'Средний балл')
+                    React.createElement('tr', null,
+                        React.createElement('th', null, 'Класс'),
+                        React.createElement('th', { style: { textAlign: 'right' } }, 'Средний балл'),
+                        React.createElement('th', { style: { textAlign: 'center' } }, 'Статус')
                     )
                 ),
                 React.createElement('tbody', null,
                     stats.classesAvg.map(c => 
-                        React.createElement('tr', { key: c.class, style: { borderBottom: '1px solid rgba(255,255,255,0.1)' } },
-                            React.createElement('td', { style: { padding: '10px' } }, c.class),
-                            React.createElement('td', { style: { padding: '10px' } }, c.avg)
+                        React.createElement('tr', { key: c.class },
+                            React.createElement('td', { style: { fontWeight: 500 } }, c.class),
+                            React.createElement('td', { style: { textAlign: 'right' } }, c.avg),
+                            React.createElement('td', { style: { textAlign: 'center' } }, 
+                                React.createElement('span', { 
+                                    style: { 
+                                        padding: '6px 12px', 
+                                        borderRadius: '20px', 
+                                        fontSize: '12px',
+                                        background: c.avg >= 4 ? '#E8F5E9' : '#FFF3E0',
+                                        color: c.avg >= 4 ? '#2E7D32' : '#F57C00'
+                                    } 
+                                }, c.avg >= 4 ? 'Отлично' : 'Внимание')
+                            )
                         )
                     )
                 )
