@@ -1,4 +1,4 @@
-from app.database import engine, Base
+from app.database import engine, Base, SessionLocal
 from app import models
 from sqlalchemy.orm import Session
 from app import auth
