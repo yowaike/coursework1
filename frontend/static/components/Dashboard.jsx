@@ -25,6 +25,9 @@ const Dashboard = () => {
         if (activeTab === 'teachers') {
             return React.createElement(TeacherList)
         }
+        if (activeTab === 'analytics') {
+            return React.createElement(Analytics)
+        }
         return React.createElement('div', { className: 'glass-card', style: { color: 'white' } },
             React.createElement('h2', null, 'Раздел: ' + activeTab),
             React.createElement('p', null, 'Контент для этого раздела скоро появится.')
