@@ -15,7 +15,9 @@ const Dashboard = () => {
         { id: 'teachers', label: 'Учителя' },
         { id: 'schedule', label: 'Расписание' },
         { id: 'grades', label: 'Оценки' },
-        { id: 'analytics', label: 'Аналитика' }
+        { id: 'analytics', label: 'Аналитика' },
+        { id: 'student_cab', label: 'Кабинет ученика' },
+        { id: 'teacher_cab', label: 'Кабинет учителя' }
     ]
 
     // функция для рендера контента
@@ -25,6 +27,8 @@ const Dashboard = () => {
         if (activeTab === 'schedule') return React.createElement(ScheduleList)
         if (activeTab === 'grades') return React.createElement(GradeBook)
         if (activeTab === 'analytics') return React.createElement(Analytics)
+        if (activeTab === 'student_cab') return React.createElement(StudentCabinet)
+        if (activeTab === 'teacher_cab') return React.createElement(TeacherCabinet)
 
         return React.createElement('div', { className: 'glass-card', style: { color: 'white' } },
             React.createElement('h2', null, 'Раздел: ' + activeTab),

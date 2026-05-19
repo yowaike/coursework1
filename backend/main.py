@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from app.database import engine, Base
-from app.routers import auth, students, teachers, classes, subjects, grades, schedule, analytics
+from app.routers import auth, students, teachers, classes, subjects, grades, schedule, analytics, notes
 from pathlib import Path
 
 app = FastAPI(title="Электронный дневничок")
@@ -22,6 +22,7 @@ app.include_router(subjects.router, prefix="/api/subjects", tags=["предме�
 app.include_router(grades.router, prefix="/api/grades", tags=["оценки"])
 app.include_router(schedule.router, prefix="/api/schedule", tags=["расписание"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["аналитика"])
+app.include_router(notes.router, prefix="/api/notes", tags=["заметки"])
 
 def init_db():
     Base.metadata.create_all(bind=engine)

@@ -1,1 +1,1 @@
-from . import students, teachers, classes, subjects, grades, schedule, analytics
+from . import students, teachers, classes, subjects, grades, schedule, analytics, notes
