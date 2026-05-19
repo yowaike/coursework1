@@ -2,43 +2,67 @@
 const StudentList = () => {
     const [students, setStudents] = React.useState([])
     const [showForm, setShowForm] = React.useState(false)
+    const [loading, setLoading] = React.useState(true)
+    const [error, setError] = React.useState('')
     const [formData, setFormData] = React.useState({ 
         full_name: '', 
         class_id: 1,
         email: '', 
-        password: 'student123' // пароль по умолчанию для теста
+        password: 'student123'
     })
 
     React.useEffect(() => {
         //функция для получения списка студентов
         fetch('/api/students')
-            .then(res => res.json())
-            .then(data => setStudents(data))
+            .then(res => {
+                if (!res.ok) throw new Error('Ошибка загрузки данных')
+                return res.json()
+            })
+            .then(data => {
+                setStudents(data)
+                setLoading(false)
+            })
+            .catch(err => {
+                setError(err.message)
+                setLoading(false)
+            })
     }, [])
 
     //функция для создания нового ученика
     const handleAdd = async (e) => {
         e.preventDefault()
-        // отправляем данные на сервер
-        await fetch('/api/students', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
-        })
-        setShowForm(false)
-        window.location.reload()
+        setError('')
+        if (!formData.full_name || !formData.email) {
+            setError('Обязательно заполните ФИО и Email')
+            return
+        }
+        try {
+            const res = await fetch('/api/students', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            })
+            if (!res.ok) throw new Error('Не удалось сохранить')
+            setShowForm(false)
+            window.location.reload()
+        } catch (err) {
+            setError(err.message)
+        }
     }
+
+    if (loading) return React.createElement('div', { className: 'spinner' })
 
     return React.createElement('div', { className: 'glass-card' },
         React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '15px' } },
             React.createElement('h3', { style: { color: 'white', margin: 0 } }, 'Список учеников'),
             React.createElement('button', { 
                 className: 'btn', 
-                onClick: () => setShowForm(!showForm) 
+                onClick: () => { setShowForm(!showForm); setError('') } 
             }, showForm ? 'Отмена' : 'Добавить ученика')
         ),
         
-        // форма добавления
+        error && React.createElement('div', { className: 'error-msg' }, error),
+        
         showForm && React.createElement('form', { 
             onSubmit: handleAdd, 
             style: { background: 'rgba(255,255,255,0.1)', padding: '15px', borderRadius: '8px', marginBottom: '15px' } 
@@ -59,14 +83,13 @@ const StudentList = () => {
             React.createElement('input', { 
                 className: 'input', 
                 type: 'number', 
-                placeholder: 'ID класса (например 1)', 
+                placeholder: 'ID класса', 
                 value: formData.class_id,
                 onChange: (e) => setFormData({...formData, class_id: Number(e.target.value)})
             }),
             React.createElement('button', { className: 'btn', type: 'submit' }, 'Сохранить')
         ),
 
-        // таблица
         React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse', color: 'white', marginTop: '10px' } },
             React.createElement('thead', null,
                 React.createElement('tr', { style: { borderBottom: '2px solid rgba(255,255,255,0.3)' } },
