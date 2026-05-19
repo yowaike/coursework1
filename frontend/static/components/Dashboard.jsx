@@ -22,6 +22,8 @@ const Dashboard = () => {
     // меню в зависимости от роли
     const allMenuItems = [
         { id: 'profile', label: 'Профиль', roles: ['admin', 'teacher', 'student'] },
+        { id: 'classes', label: 'Классы', roles: ['admin'] },
+        { id: 'subjects', label: 'Предметы', roles: ['admin'] },
         { id: 'students', label: 'Ученики', roles: ['admin'] },
         { id: 'teachers', label: 'Учителя', roles: ['admin'] },
         { id: 'schedule', label: 'Расписание', roles: ['admin'] },
@@ -36,6 +38,8 @@ const Dashboard = () => {
     // функция для рендера контента
     const renderContent = () => {
         if (loading) return React.createElement('p', { style: { color: 'white', textAlign: 'center', marginTop: '50px' } }, 'Загрузка...')
+        if (activeTab === 'classes') return React.createElement(ClassList)
+        if (activeTab === 'subjects') return React.createElement(SubjectList)
         if (activeTab === 'students') return React.createElement(StudentList)
         if (activeTab === 'teachers') return React.createElement(TeacherList)
         if (activeTab === 'schedule') return React.createElement(ScheduleList)
