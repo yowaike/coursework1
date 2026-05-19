@@ -1,11 +1,11 @@
-// компонент панели управления с проверкой ролей
+// компонент панели управления с проверкой ролей и логотипом
 const Dashboard = () => {
     const [activeTab, setActiveTab] = React.useState('profile')
     const [userRole, setUserRole] = React.useState(null)
     const [loading, setLoading] = React.useState(true)
 
+    //функция для проверки авторизации и получения роли
     React.useEffect(() => {
-        //функция для проверки авторизации и получения роли
         fetch('/api/auth/me', { credentials: 'include' })
             .then(res => res.ok ? res.json() : Promise.reject())
             .then(data => setUserRole(data.role))
@@ -13,13 +13,13 @@ const Dashboard = () => {
             .finally(() => setLoading(false))
     }, [])
 
-    // функция для выхода из системы
+    //функция для выхода из системы
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
         window.location.href = '/'
     }
 
-    // меню в зависимости от роли
+    // список пунктов меню с доступом по ролям
     const allMenuItems = [
         { id: 'profile', label: 'Профиль', roles: ['admin', 'teacher', 'student'] },
         { id: 'classes', label: 'Классы', roles: ['admin'] },
@@ -35,7 +35,7 @@ const Dashboard = () => {
 
     const menuItems = allMenuItems.filter(item => item.roles.includes(userRole))
 
-    // функция для рендера контента
+    // функция для рендера контента в зависимости от вкладки
     const renderContent = () => {
         if (loading) return React.createElement('p', { style: { color: 'white', textAlign: 'center', marginTop: '50px' } }, 'Загрузка...')
         if (activeTab === 'classes') return React.createElement(ClassList)
@@ -47,7 +47,7 @@ const Dashboard = () => {
         if (activeTab === 'analytics') return React.createElement(Analytics)
         if (activeTab === 'teacher_cab') return React.createElement(TeacherCabinet)
         if (activeTab === 'student_cab') return React.createElement(StudentCabinet)
-        
+
         return React.createElement('div', { className: 'glass-card', style: { color: 'white' } },
             React.createElement('h2', null, 'Добро пожаловать!'),
             React.createElement('p', null, `Ваша роль: ${userRole}. Выберите раздел в меню.`)
@@ -55,18 +55,22 @@ const Dashboard = () => {
     }
 
     return React.createElement('div', { style: { display: 'flex', minHeight: '100vh' } },
-        React.createElement('div', { 
-            className: 'glass-card', 
-            style: { width: '250px', margin: '20px', height: 'calc(100vh - 40px)', display: 'flex', flexDirection: 'column' } 
+        // боковое меню
+        React.createElement('div', {
+            className: 'glass-card',
+            style: { width: '250px', margin: '20px', height: 'calc(100vh - 40px)', display: 'flex', flexDirection: 'column' }
         },
-            React.createElement('h3', { style: { color: 'white', marginBottom: '20px' } }, 'Меню'),
-            React.createElement('div', { style: { flex: 1 } },
-                menuItems.map(item => 
+            React.createElement('div', { style: { textAlign: 'center', marginBottom: '20px', padding: '15px 0', borderBottom: '1px solid rgba(255,255,255,0.2)' } },
+                React.createElement('img', { src: '/static/images/logo.svg', alt: 'Логотип', style: { width: '80px', height: '80px', marginBottom: '10px' } }),
+                React.createElement('h3', { style: { color: 'white', margin: 0, fontSize: '16px', fontWeight: '600' } }, 'Электронный дневник')
+            ),
+            React.createElement('div', { style: { flex: 1, overflowY: 'auto' } },
+                menuItems.map(item =>
                     React.createElement('div', {
                         key: item.id,
                         onClick: () => setActiveTab(item.id),
-                        style: { 
-                            padding: '12px', 
+                        style: {
+                            padding: '12px',
                             cursor: 'pointer',
                             background: activeTab === item.id ? 'rgba(255,255,255,0.25)' : 'transparent',
                             borderRadius: '8px',
@@ -77,18 +81,19 @@ const Dashboard = () => {
                     }, item.label)
                 )
             ),
-            React.createElement('button', { 
-                className: 'btn', 
+            React.createElement('button', {
+                className: 'btn',
                 style: { width: '100%', background: '#e74c3c', marginTop: '10px' },
-                onClick: handleLogout 
+                onClick: handleLogout
             }, 'Выйти')
         ),
+        // основная область контента
         React.createElement('div', { style: { flex: 1, padding: '20px', overflowY: 'auto' } },
             renderContent()
         )
     )
 }
 
-// функция для рендера компонента
+//функция для рендера компонента на странице
 const root = ReactDOM.createRoot(document.getElementById('dashboard-root'))
 root.render(React.createElement(Dashboard))
