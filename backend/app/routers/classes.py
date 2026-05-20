@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models
@@ -17,3 +17,13 @@ def add_class(item: dict, db: Session = Depends(get_db)):
     db.add(new_cls)
     db.commit()
     return new_cls
+
+#функция для удаления класса
+@router.delete("/{class_id}")
+def delete_class(class_id: int, db: Session = Depends(get_db)):
+    cls = db.query(models.Class).filter(models.Class.id == class_id).first()
+    if not cls:
+        raise HTTPException(status_code=404, detail="Класс не найден")
+    db.delete(cls)
+    db.commit()
+    return {"msg": "Класс удален"}

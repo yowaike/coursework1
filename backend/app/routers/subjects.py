@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models
@@ -17,3 +17,13 @@ def add_subject(item: dict, db: Session = Depends(get_db)):
     db.add(obj)
     db.commit()
     return obj
+
+#функция для удаления предмета
+@router.delete("/{subject_id}")
+def delete_subject(subject_id: int, db: Session = Depends(get_db)):
+    subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Предмет не найден")
+    db.delete(subject)
+    db.commit()
+    return {"msg": "Предмет удален"}
