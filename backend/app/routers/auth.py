@@ -14,8 +14,18 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(status_code=400, detail="Неверный email или пароль")
 
     token = auth_utils.create_access_token(data={"sub": user.email, "role": user.role})
-    response.set_cookie(key="access_token", value=token, httponly=True, max_age=1800)
-    return {"msg": "вход выполнен"}
+    
+    response.set_cookie(
+        key="access_token", 
+        value=token, 
+        httponly=True, 
+        max_age=1800,
+        samesite="lax",
+        secure=False,
+        path="/" 
+    )
+    
+    return {"msg": "вход выполнен", "role": user.role}
 
 #функция для выхода пользователя
 @router.post("/logout")

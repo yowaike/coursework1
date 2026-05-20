@@ -10,6 +10,7 @@ app = FastAPI(title="Электронный дневничок")
 
 # настройка путей
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Убедись, что папка static действительно лежит по этому пути
 app.mount("/static", StaticFiles(directory=BASE_DIR / "frontend" / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "backend" / "templates")
 
@@ -27,12 +28,10 @@ app.include_router(notes.router, prefix="/api/notes", tags=["заметки"])
 def init_db():
     Base.metadata.create_all(bind=engine)
 
-# главная страница
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-# страница дашборда
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
