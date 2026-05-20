@@ -29,8 +29,8 @@ const ClassList = () => {
             React.createElement('button', { className: 'btn', onClick: () => setShowForm(!showForm) }, showForm ? 'Отмена' : 'Добавить класс')
         ),
         showForm && React.createElement('form', { onSubmit: handleAdd, style: { background: 'rgba(255,255,255,0.1)', padding: '15px', borderRadius: '8px', marginBottom: '15px' } },
-            React.createElement('input', { className: 'input', placeholder: 'Название (например 9А)', value: formData.name, onChange: (e) => setFormData({...formData, name: e.target.value}) }),
-            React.createElement('input', { className: 'input', type: 'number', placeholder: 'Год обучения', value: formData.year, onChange: (e) => setFormData({...formData, year: Number(e.target.value)}) }),
+            React.createElement('input', { className: 'input', placeholder: 'Название (например 9А)', value: formData.name, onChange: (e) => setFormData({ ...formData, name: e.target.value }) }),
+            React.createElement('input', { className: 'input', type: 'number', placeholder: 'Год обучения', value: formData.year, onChange: (e) => setFormData({ ...formData, year: Number(e.target.value) }) }),
             React.createElement('button', { className: 'btn', type: 'submit' }, 'Сохранить')
         ),
         React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse', color: 'white' } },
@@ -41,10 +41,24 @@ const ClassList = () => {
                 )
             ),
             React.createElement('tbody', null,
-                classes.map(c => React.createElement('tr', { key: c.id, style: { borderBottom: '1px solid rgba(255,255,255,0.1)' } },
-                    React.createElement('td', { style: { padding: '10px' } }, c.name),
-                    React.createElement('td', { style: { padding: '10px' } }, c.year)
-                ))
+                classes.map(c =>
+                    React.createElement('tr', { key: c.id, style: { borderBottom: '1px solid rgba(255,255,255,0.1)' } },
+                        React.createElement('td', { style: { padding: '10px' } }, c.name),
+                        React.createElement('td', { style: { padding: '10px' } }, c.year),
+                        React.createElement('td', { style: { padding: '10px', textAlign: 'right' } },
+                            React.createElement('button', {
+                                className: 'btn',
+                                style: { background: '#D32F2F', padding: '8px 16px', fontSize: '12px' },
+                                onClick: async () => {
+                                    if (window.confirm(`Удалить класс ${c.name}?`)) {
+                                        await fetch(`/api/classes/${c.id}`, { method: 'DELETE' })
+                                        window.location.reload()
+                                    }
+                                }
+                            }, 'Удалить')
+                        )
+                    )
+                )
             )
         )
     )

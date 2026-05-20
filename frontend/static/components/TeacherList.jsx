@@ -26,34 +26,34 @@ const TeacherList = () => {
     return React.createElement('div', { className: 'glass-card' },
         React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '15px' } },
             React.createElement('h3', { style: { color: 'white', margin: 0 } }, 'Список учителей'),
-            React.createElement('button', { 
-                className: 'btn', 
-                onClick: () => setShowForm(!showForm) 
+            React.createElement('button', {
+                className: 'btn',
+                onClick: () => setShowForm(!showForm)
             }, showForm ? 'Отмена' : 'Добавить учителя')
         ),
-        
-        showForm && React.createElement('form', { 
-            onSubmit: handleAdd, 
-            style: { background: 'rgba(255,255,255,0.1)', padding: '15px', borderRadius: '8px', marginBottom: '15px' } 
+
+        showForm && React.createElement('form', {
+            onSubmit: handleAdd,
+            style: { background: 'rgba(255,255,255,0.1)', padding: '15px', borderRadius: '8px', marginBottom: '15px' }
         },
-            React.createElement('input', { 
-                className: 'input', 
-                placeholder: 'ФИО учителя', 
+            React.createElement('input', {
+                className: 'input',
+                placeholder: 'ФИО учителя',
                 value: formData.full_name,
-                onChange: (e) => setFormData({...formData, full_name: e.target.value})
+                onChange: (e) => setFormData({ ...formData, full_name: e.target.value })
             }),
-            React.createElement('input', { 
-                className: 'input', 
-                type: 'number', 
-                placeholder: 'ID предмета (например 1)', 
+            React.createElement('input', {
+                className: 'input',
+                type: 'number',
+                placeholder: 'ID предмета (например 1)',
                 value: formData.subject_id,
-                onChange: (e) => setFormData({...formData, subject_id: Number(e.target.value)})
+                onChange: (e) => setFormData({ ...formData, subject_id: Number(e.target.value) })
             }),
-            React.createElement('input', { 
-                className: 'input', 
-                placeholder: 'Кабинет', 
+            React.createElement('input', {
+                className: 'input',
+                placeholder: 'Кабинет',
                 value: formData.room_number,
-                onChange: (e) => setFormData({...formData, room_number: e.target.value})
+                onChange: (e) => setFormData({ ...formData, room_number: e.target.value })
             }),
             React.createElement('button', { className: 'btn', type: 'submit' }, 'Сохранить')
         ),
@@ -67,11 +67,23 @@ const TeacherList = () => {
                 )
             ),
             React.createElement('tbody', null,
-                teachers.map(t => 
+                teachers.map(t =>
                     React.createElement('tr', { key: t.id, style: { borderBottom: '1px solid rgba(255,255,255,0.1)' } },
                         React.createElement('td', { style: { padding: '10px' } }, t.user ? t.user.full_name : '—'),
                         React.createElement('td', { style: { padding: '10px' } }, t.subject_id),
-                        React.createElement('td', { style: { padding: '10px' } }, t.room_number || '—')
+                        React.createElement('td', { style: { padding: '10px' } }, t.room_number || '—'),
+                        React.createElement('td', { style: { padding: '10px', textAlign: 'right' } },
+                            React.createElement('button', {
+                                className: 'btn',
+                                style: { background: '#D32F2F', padding: '8px 16px', fontSize: '12px' },
+                                onClick: async () => {
+                                    if (window.confirm(`Удалить учителя ${t.user ? t.user.full_name : t.id}?`)) {
+                                        await fetch(`/api/teachers/${t.id}`, { method: 'DELETE' })
+                                        window.location.reload()
+                                    }
+                                }
+                            }, 'Удалить')
+                        )
                     )
                 )
             )
