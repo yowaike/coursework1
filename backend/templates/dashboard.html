@@ -1,13 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Панель управления - Электронный дневничок{% endblock %}
+{% block title %}Дашборд - Электронный дневничок{% endblock %}
 
 {% block content %}
 <div id="dashboard-root"></div>
 {% endblock %}
 
 {% block scripts %}
-<script type="text/babel" src="/static/components/ExportButton.jsx"></script>
 <script type="text/babel" src="/static/components/StudentList.jsx"></script>
 <script type="text/babel" src="/static/components/TeacherList.jsx"></script>
 <script type="text/babel" src="/static/components/ScheduleList.jsx"></script>
@@ -17,5 +16,6 @@
 <script type="text/babel" src="/static/components/TeacherCabinet.jsx"></script>
 <script type="text/babel" src="/static/components/ClassList.jsx"></script>
 <script type="text/babel" src="/static/components/SubjectList.jsx"></script>
+<script type="text/babel" src="/static/components/ExportButton.jsx"></script>
 <script type="text/babel" src="/static/components/Dashboard.jsx"></script>
 {% endblock %}

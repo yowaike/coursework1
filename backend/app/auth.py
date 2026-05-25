@@ -10,7 +10,7 @@ load_dotenv()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Настройки JWT
-SECRET_KEY = os.getenv("SECRET_KEY", "my_super_secret_key_for_coursework")
+SECRET_KEY = "coursework_secret_key_12345"
 ALGORITHM = "HS256"
 
 # Функция для хеширования пароля

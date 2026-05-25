@@ -2,28 +2,43 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models
+from ..dependencies import require_role
+from ..schemas import SubjectCreate
 
 router = APIRouter()
 
-#функция для получения предметов
+# получить все предметы (только завуч)
 @router.get("/")
-def read_subjects(db: Session = Depends(get_db)):
-    return db.query(models.Subject).all()
+async def get_subjects(db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
+    subjects = db.query(models.Subject).all()
+    return [
+        {
+            "id": subject.id,
+            "name": subject.name,
+            "description": subject.description
+        }
+        for subject in subjects
+    ]
 
-#функция для добавления предмета
+# создать предмет (только завуч)
 @router.post("/")
-def add_subject(item: dict, db: Session = Depends(get_db)):
-    obj = models.Subject(**item)
-    db.add(obj)
+async def create_subject(data: SubjectCreate, db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
+    new_subject = models.Subject(**data.dict())
+    db.add(new_subject)
     db.commit()
-    return obj
+    db.refresh(new_subject)
+    return {
+        "id": new_subject.id,
+        "name": new_subject.name,
+        "description": new_subject.description
+    }
 
-#функция для удаления предмета
+# удалить предмет (только завуч)
 @router.delete("/{subject_id}")
-def delete_subject(subject_id: int, db: Session = Depends(get_db)):
+async def delete_subject(subject_id: int, db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
     subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Предмет не найден")
     db.delete(subject)
     db.commit()
-    return {"msg": "Предмет удален"}
+    return {"message": "Предмет удален"}
