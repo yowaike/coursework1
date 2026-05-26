@@ -124,28 +124,53 @@ def update_teacher(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_role("admin"))
 ):
-    teacher = db.query(models.Teacher).join(models.User).filter(models.Teacher.id == teacher_id).first()
+    # функция для поиска учителя с данными пользователя и предмета
+    teacher = db.query(models.Teacher).options(
+        joinedload(models.Teacher.user),
+        joinedload(models.Teacher.subject)
+    ).filter(models.Teacher.id == teacher_id).first()
+    
     if not teacher:
         raise HTTPException(status_code=404, detail="Учитель не найден")
-
-    if data.email:
-        existing = db.query(models.User).filter(models.User.email == data.email, models.User.id != teacher.user_id).first()
+    
+    # функция для валидации уникальности email
+    if data.email and data.email != teacher.user.email:
+        existing = db.query(models.User).filter(
+            models.User.email == data.email,
+            models.User.id != teacher.user_id
+        ).first()
         if existing:
             raise HTTPException(status_code=400, detail="Email уже используется")
         teacher.user.email = data.email
-
+    
+    # функция для обновления ФИО
     if data.full_name:
         teacher.user.full_name = data.full_name
-
-    if data.password:
+    
+    # функция для обновления пароля
+    if data.password and data.password.strip():
         teacher.user.hashed_password = get_password_hash(data.password)
-
+    
+    # функция для обновления предмета
     if data.subject_id is not None:
         teacher.subject_id = data.subject_id
-
+    
+    # функция для обновления кабинета
     if data.room_number is not None:
         teacher.room_number = data.room_number
-
-    db.commit()
-    db.refresh(teacher)
-    return {"id": teacher.id, "msg": "Учитель обновлён"}
+    
+    # функция для сохранения изменений
+    try:
+        db.commit()
+        db.refresh(teacher)
+        db.refresh(teacher.user)
+        return {
+            "id": teacher.id,
+            "msg": "Учитель обновлён",
+            "email": teacher.user.email,
+            "full_name": teacher.user.full_name,
+            "subject_name": teacher.subject.name if teacher.subject else None
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сохранения: {str(e)}")

@@ -5,6 +5,12 @@ from datetime import datetime
 
 # модели таблиц базы данных
 
+# типы оценок и виды работ (валидация в роутерах)
+GRADE_TYPE_CURRENT = "current"
+GRADE_TYPE_QUARTER = "quarter"
+WORK_TYPES_TEACHER = ("КР", "ДЗ", "ОТВ", "СР", "ТЕСТ")
+WORK_TYPE_QUARTER = "ЧЕТВ"
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -20,6 +26,7 @@ class User(Base):
 
     teacher = relationship("Teacher", back_populates="user", uselist=False)
     student = relationship("Student", back_populates="user", uselist=False)
+    authored_notes = relationship("Note", back_populates="author", foreign_keys="Note.author_id")
 
 class Teacher(Base):
     __tablename__ = "teachers"
@@ -49,6 +56,8 @@ class Class(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(10), nullable=False)
     year = Column(Integer, nullable=False)
+    max_students = Column(Integer, nullable=False, default=30)
+    lessons_per_week = Column(Integer, nullable=False, default=30)
 
     students = relationship("Student", back_populates="class_group")
     schedule_items = relationship("Schedule", back_populates="class_group")
@@ -99,10 +108,12 @@ class Note(Base):
     __tablename__ = "notes"
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     text = Column(Text, nullable=False)
     date = Column(Date, nullable=False)
 
     student = relationship("Student", back_populates="notes")
+    author = relationship("User", back_populates="authored_notes", foreign_keys=[author_id])
 
 class Event(Base):
     __tablename__ = "events"

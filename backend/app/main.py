@@ -8,6 +8,13 @@ from app.routers import auth, students, teachers, classes, subjects, grades, sch
 
 app = FastAPI(title="Электронный дневничок")
 
+
+@app.on_event("startup")
+def on_startup():
+    from app.migrate import migrate_schema
+    Base.metadata.create_all(bind=engine)
+    migrate_schema()
+
 # настройка путей
 # main.py лежит в backend/app/main.py, поэтому:
 # родитель main.py = backend/app

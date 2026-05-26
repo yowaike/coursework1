@@ -70,6 +70,14 @@ class TeacherOut(BaseModel):
 class ClassCreate(BaseModel):
     name: str
     year: int
+    max_students: int = 30
+    lessons_per_week: int = 30
+
+class ClassUpdate(BaseModel):
+    name: Optional[str] = None
+    year: Optional[int] = None
+    max_students: Optional[int] = None
+    lessons_per_week: Optional[int] = None
 
 class SubjectCreate(BaseModel):
     name: str
@@ -87,6 +95,10 @@ class NoteCreate(BaseModel):
     student_id: int
     text: str
     date: date
+
+class NoteUpdate(BaseModel):
+    text: Optional[str] = None
+    date: Optional[date] = None
 
 class GradeCreate(BaseModel):
     student_id: int

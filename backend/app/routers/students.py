@@ -8,6 +8,21 @@ from ..schemas import StudentUpdate
 
 router = APIRouter()
 
+
+def _check_class_capacity(db: Session, class_id: int, exclude_student_id: int | None = None):
+    cls = db.query(models.Class).filter(models.Class.id == class_id).first()
+    if not cls:
+        raise HTTPException(status_code=404, detail="Класс не найден")
+    query = db.query(models.Student).filter(models.Student.class_id == class_id)
+    if exclude_student_id is not None:
+        query = query.filter(models.Student.id != exclude_student_id)
+    if query.count() >= cls.max_students:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Класс {cls.name} заполнен (максимум {cls.max_students} учеников)",
+        )
+
+
 # функция для получения списка учеников (только завуч)
 @router.get("/")
 def get_students(
@@ -123,7 +138,9 @@ def create_student(data: dict, db: Session = Depends(get_db), current_user: dict
         db.add(user)
         db.flush()
 
-        student = models.Student(user_id=user.id, class_id=data.get("class_id", 1))
+        class_id = data.get("class_id", 1)
+        _check_class_capacity(db, class_id)
+        student = models.Student(user_id=user.id, class_id=class_id)
         db.add(student)
         db.commit()
         db.refresh(student)
@@ -204,25 +221,50 @@ def update_student(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_role("admin"))
 ):
-    student = db.query(models.Student).join(models.User).filter(models.Student.id == student_id).first()
+    # функция для поиска ученика с данными пользователя и класса
+    student = db.query(models.Student).options(
+        joinedload(models.Student.user),
+        joinedload(models.Student.class_group)
+    ).filter(models.Student.id == student_id).first()
+    
     if not student:
         raise HTTPException(status_code=404, detail="Ученик не найден")
-
-    if data.email:
-        existing = db.query(models.User).filter(models.User.email == data.email, models.User.id != student.user_id).first()
+    
+    # функция для валидации уникальности email
+    if data.email and data.email != student.user.email:
+        existing = db.query(models.User).filter(
+            models.User.email == data.email,
+            models.User.id != student.user_id
+        ).first()
         if existing:
             raise HTTPException(status_code=400, detail="Email уже используется")
         student.user.email = data.email
-
+    
+    # функция для обновления ФИО
     if data.full_name:
         student.user.full_name = data.full_name
-
-    if data.password:
+    
+    # функция для обновления пароля (только если передан новый)
+    if data.password and data.password.strip():
         student.user.hashed_password = get_password_hash(data.password)
-
+    
+    # функция для обновления класса
     if data.class_id is not None:
+        _check_class_capacity(db, data.class_id, exclude_student_id=student.id)
         student.class_id = data.class_id
-
-    db.commit()
-    db.refresh(student)
-    return {"id": student.id, "msg": "Ученик обновлён"}
+    
+    # функция для сохранения изменений в БД
+    try:
+        db.commit()
+        db.refresh(student)
+        db.refresh(student.user)
+        return {
+            "id": student.id,
+            "msg": "Ученик обновлён",
+            "email": student.user.email,
+            "full_name": student.user.full_name,
+            "class_name": student.class_group.name if student.class_group else None
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сохранения: {str(e)}")

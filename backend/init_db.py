@@ -1,288 +1,193 @@
+# backend/init_db.py
 from app.database import engine, Base, SessionLocal
+from app.migrate import migrate_schema
 from app import models, auth
 from datetime import date
 import random
+import sys
 
-# функция для инициализации базы данных с демо-данными
+
 def init_db():
-    # создаём таблицы
     Base.metadata.create_all(bind=engine)
-    
+    migrate_schema()
+    print("Миграция схемы выполнена.")
+
     db = SessionLocal()
-    
-    # если данные уже есть — не пересоздаём
+
     if db.query(models.User).first():
         db.close()
         print("База данных уже содержит данные. Пропускаем инициализацию.")
-        print("Чтобы пересоздать — удалите таблицы вручную.")
         return
-    
-    # ========== ПОЛЬЗОВАТЕЛИ ==========
-    admin_user = models.User(
+
+    # ========== 1 ЗАВУЧ ==========
+    admin = models.User(
         email="admin@school.ru",
         full_name="Воронцова Елена Сергеевна",
         hashed_password=auth.get_password_hash("admin123"),
         role="admin"
     )
-    
-    teacher_math = models.User(
-        email="petrova@school.ru",
-        full_name="Петрова Анна Владимировна",
-        hashed_password=auth.get_password_hash("teacher123"),
-        role="teacher"
-    )
-    teacher_rus = models.User(
-        email="sidorov@school.ru",
-        full_name="Сидоров Игорь Николаевич",
-        hashed_password=auth.get_password_hash("teacher123"),
-        role="teacher"
-    )
-    teacher_eng = models.User(
-        email="smirnova@school.ru",
-        full_name="Смирнова Ольга Дмитриевна",
-        hashed_password=auth.get_password_hash("teacher123"),
-        role="teacher"
-    )
-    teacher_phys = models.User(
-        email="kozlov@school.ru",
-        full_name="Козлов Дмитрий Алексеевич",
-        hashed_password=auth.get_password_hash("teacher123"),
-        role="teacher"
-    )
-    
-    student_names = [
-        ("Иванов", "Артём", "Александрович"), ("Петрова", "Мария", "Сергеевна"),
-        ("Смирнов", "Кирилл", "Дмитриевич"), ("Кузнецова", "Алиса", "Андреевна"),
-        ("Попов", "Максим", "Игоревич"), ("Васильева", "Дарья", "Павловна"),
-        ("Соколов", "Никита", "Романович"), ("Морозова", "Анастасия", "Викторовна"),
-        ("Богданов", "Илья", "Евгеньевич"), ("Соловьёва", "Варвара", "Алексеевна"),
-        ("Егоров", "Арсений", "Владимирович"), ("Григорьева", "Виктория", "Олеговна"),
-    ]
-    
-    student_users = []
-    for i, (surname, firstname, patronymic) in enumerate(student_names):
-        u = models.User(
-            email=f"student{i+1}@school.ru",
-            full_name=f"{surname} {firstname} {patronymic}",
-            hashed_password=auth.get_password_hash("student123"),
-            role="student"
-        )
-        student_users.append(u)
-    
-    db.add(admin_user)
-    db.add_all([teacher_math, teacher_rus, teacher_eng, teacher_phys])
-    db.add_all(student_users)
+    db.add(admin)
     db.commit()
-    
-    # ========== ПРЕДМЕТЫ ==========
+
+    # ========== 4 ПРЕДМЕТА ==========
     subjects_data = [
-        {"name": "Математика", "description": "Алгебра и геометрия, 5 часов в неделю"},
-        {"name": "Русский язык", "description": "Грамматика, литература и развитие речи"},
-        {"name": "Английский язык", "description": "Иностранный язык, базовый и углублённый уровень"},
-        {"name": "Физика", "description": "Механика, термодинамика, электричество"},
-        {"name": "Информатика", "description": "Программирование, алгоритмы, базы данных"},
-        {"name": "История", "description": "Всеобщая история и история России"},
+        {"name": "Математика", "description": "Алгебра и геометрия"},
+        {"name": "Русский язык", "description": "Русский язык и литература"},
+        {"name": "Английский язык", "description": "Иностранный язык"},
+        {"name": "Физика", "description": "Физика и астрономия"},
     ]
-    
     subjects = []
     for s in subjects_data:
         subj = models.Subject(**s)
         db.add(subj)
         subjects.append(subj)
     db.commit()
-    
-    # ========== КЛАССЫ ==========
-    classes_data = [
-        {"name": "9А", "year": 2024},
-        {"name": "9Б", "year": 2024},
-        {"name": "10А", "year": 2024},
-        {"name": "10Б", "year": 2024},
-        {"name": "11А", "year": 2024},
-        {"name": "11Б", "year": 2024},
+
+    # ========== 4 УЧИТЕЛЯ ==========
+    teachers_data = [
+        {"email": "petrova@school.ru", "name": "Петрова Анна Владимировна", "subject_idx": 0, "room": "301"},
+        {"email": "sidorov@school.ru", "name": "Сидоров Игорь Николаевич", "subject_idx": 1, "room": "205"},
+        {"email": "smirnova@school.ru", "name": "Смирнова Ольга Дмитриевна", "subject_idx": 2, "room": "412"},
+        {"email": "kozlov@school.ru", "name": "Козлов Дмитрий Алексеевич", "subject_idx": 3, "room": "108"},
     ]
-    
+    teachers = []
+    for t in teachers_data:
+        user = models.User(
+            email=t["email"],
+            full_name=t["name"],
+            hashed_password=auth.get_password_hash("teacher123"),
+            role="teacher"
+        )
+        db.add(user)
+        db.commit()
+        teacher = models.Teacher(
+            user_id=user.id,
+            subject_id=subjects[t["subject_idx"]].id,
+            room_number=t["room"]
+        )
+        db.add(teacher)
+        db.commit()
+        teachers.append(teacher)
+
+    # ========== 4 КЛАССА ==========
+    classes_data = [
+        {"name": "9А", "year": 2024, "max_students": 30, "lessons_per_week": 34},
+        {"name": "9Б", "year": 2024, "max_students": 28, "lessons_per_week": 32},
+        {"name": "10А", "year": 2024, "max_students": 25, "lessons_per_week": 35},
+        {"name": "10Б", "year": 2024, "max_students": 27, "lessons_per_week": 33},
+    ]
     classes = []
     for c in classes_data:
         cls = models.Class(**c)
         db.add(cls)
         classes.append(cls)
     db.commit()
-    
-    # ========== УЧИТЕЛЯ ==========
-    teacher_records = [
-        models.Teacher(user_id=teacher_math.id, subject_id=subjects[0].id, room_number="301"),
-        models.Teacher(user_id=teacher_rus.id, subject_id=subjects[1].id, room_number="205"),
-        models.Teacher(user_id=teacher_eng.id, subject_id=subjects[2].id, room_number="412"),
-        models.Teacher(user_id=teacher_phys.id, subject_id=subjects[3].id, room_number="108"),
+
+    # ========== 4 УЧЕНИКА ==========
+    students_data = [
+        {"email": "ivanov@school.ru", "name": "Иванов Артём Александрович", "class_idx": 0},
+        {"email": "petrova_s@school.ru", "name": "Петрова Мария Сергеевна", "class_idx": 1},
+        {"email": "smirnov_k@school.ru", "name": "Смирнов Кирилл Дмитриевич", "class_idx": 2},
+        {"email": "kozlova_a@school.ru", "name": "Козлова Алиса Андреевна", "class_idx": 3},
     ]
-    db.add_all(teacher_records)
-    db.commit()
-    
-    # ========== УЧЕНИКИ ==========
-    student_records = []
-    for i, user in enumerate(student_users):
-        class_idx = i // 2
-        student_records.append(models.Student(user_id=user.id, class_id=classes[class_idx].id))
-    db.add_all(student_records)
-    db.commit()
-    
-    # ========== ОЦЕНКИ с разными профилями классов ==========
-    random.seed(42)
-    grade_records = []
-    quarters = [1, 2, 3, 4]
-    work_types = ["КР", "ДЗ", "СР", "ОТВ", "ТЕСТ"]
-    
-    # профили: [доля_2, доля_3, доля_4, доля_5]
-    class_profiles = [
-        [0.05, 0.15, 0.35, 0.45],  # 9А — хороший
-        [0.30, 0.40, 0.20, 0.10],  # 9Б — слабый
-        [0.05, 0.20, 0.35, 0.40],  # 10А — хороший
-        [0.15, 0.30, 0.35, 0.20],  # 10Б — средний
-        [0.02, 0.08, 0.25, 0.65],  # 11А — отличный
-        [0.35, 0.40, 0.20, 0.05],  # 11Б — очень слабый
-    ]
-    
-    for student in student_records:
-        class_subjects = subjects[:4]
-        class_idx = student.class_id - classes[0].id
-        if class_idx < 0 or class_idx >= len(class_profiles):
-            class_idx = 0
-        profile = class_profiles[class_idx]
-        
-        for subj in class_subjects:
-            for quarter in quarters:
-                num_grades = random.randint(3, 5)
-                quarter_grades = []
-                
-                for _ in range(num_grades):
-                    r = random.random()
-                    if r < profile[0]:
-                        grade_val = 2
-                    elif r < profile[0] + profile[1]:
-                        grade_val = 3
-                    elif r < profile[0] + profile[1] + profile[2]:
-                        grade_val = 4
-                    else:
-                        grade_val = 5
-                    quarter_grades.append(grade_val)
-                    
-                    teacher_for_subj = None
-                    for t in teacher_records:
-                        if t.subject_id == subj.id:
-                            teacher_for_subj = t
-                            break
-                    if not teacher_for_subj:
-                        teacher_for_subj = teacher_records[0]
-                    
-                    grade_records.append(models.Grade(
-                        student_id=student.id,
-                        subject_id=subj.id,
-                        teacher_id=teacher_for_subj.id,
-                        grade_type="current",
-                        grade_value=grade_val,
-                        work_type=random.choice(work_types),
-                        quarter=quarter,
-                        date=date(2024, random.randint(9, 11) if quarter == 1 
-                                  else random.randint(12, 12) if quarter == 2 
-                                  else random.randint(1, 2) if quarter == 3 
-                                  else random.randint(4, 5), random.randint(1, 28))
-                    ))
-                
-                if quarter_grades:
-                    quarter_grade = round(sum(quarter_grades) / len(quarter_grades))
-                    quarter_grade = max(2, min(5, quarter_grade))
-                    
-                    teacher_for_subj = None
-                    for t in teacher_records:
-                        if t.subject_id == subj.id:
-                            teacher_for_subj = t
-                            break
-                    if not teacher_for_subj:
-                        teacher_for_subj = teacher_records[0]
-                    
-                    grade_records.append(models.Grade(
-                        student_id=student.id,
-                        subject_id=subj.id,
-                        teacher_id=teacher_for_subj.id,
-                        grade_type="quarter",
-                        grade_value=quarter_grade,
-                        work_type="ЧЕТВ",
-                        quarter=quarter,
-                        date=date(2024, 10 if quarter == 1 else 12 if quarter == 2 else 3 if quarter == 3 else 5, 25)
-                    ))
-    
-    db.add_all(grade_records)
-    db.commit()
-    
-    # ========== РАСПИСАНИЕ ==========
-    schedule_data = [
-        {"class_id": classes[0].id, "subject_id": subjects[0].id, "teacher_id": teacher_records[0].id, "day_of_week": 1, "start_time": "08:30", "room": "301"},
-        {"class_id": classes[0].id, "subject_id": subjects[1].id, "teacher_id": teacher_records[1].id, "day_of_week": 1, "start_time": "09:25", "room": "205"},
-        {"class_id": classes[0].id, "subject_id": subjects[2].id, "teacher_id": teacher_records[2].id, "day_of_week": 2, "start_time": "08:30", "room": "412"},
-        {"class_id": classes[0].id, "subject_id": subjects[3].id, "teacher_id": teacher_records[3].id, "day_of_week": 2, "start_time": "09:25", "room": "108"},
-        {"class_id": classes[0].id, "subject_id": subjects[0].id, "teacher_id": teacher_records[0].id, "day_of_week": 3, "start_time": "10:20", "room": "301"},
-        {"class_id": classes[1].id, "subject_id": subjects[1].id, "teacher_id": teacher_records[1].id, "day_of_week": 1, "start_time": "08:30", "room": "205"},
-        {"class_id": classes[1].id, "subject_id": subjects[3].id, "teacher_id": teacher_records[3].id, "day_of_week": 2, "start_time": "09:25", "room": "108"},
-        {"class_id": classes[1].id, "subject_id": subjects[2].id, "teacher_id": teacher_records[2].id, "day_of_week": 3, "start_time": "08:30", "room": "412"},
-        {"class_id": classes[2].id, "subject_id": subjects[0].id, "teacher_id": teacher_records[0].id, "day_of_week": 1, "start_time": "09:25", "room": "301"},
-        {"class_id": classes[2].id, "subject_id": subjects[2].id, "teacher_id": teacher_records[2].id, "day_of_week": 2, "start_time": "10:20", "room": "412"},
-        {"class_id": classes[2].id, "subject_id": subjects[3].id, "teacher_id": teacher_records[3].id, "day_of_week": 3, "start_time": "08:30", "room": "108"},
-        {"class_id": classes[3].id, "subject_id": subjects[1].id, "teacher_id": teacher_records[1].id, "day_of_week": 1, "start_time": "10:20", "room": "205"},
-        {"class_id": classes[3].id, "subject_id": subjects[0].id, "teacher_id": teacher_records[0].id, "day_of_week": 2, "start_time": "08:30", "room": "301"},
-        {"class_id": classes[4].id, "subject_id": subjects[3].id, "teacher_id": teacher_records[3].id, "day_of_week": 1, "start_time": "08:30", "room": "108"},
-        {"class_id": classes[4].id, "subject_id": subjects[2].id, "teacher_id": teacher_records[2].id, "day_of_week": 2, "start_time": "09:25", "room": "412"},
-        {"class_id": classes[5].id, "subject_id": subjects[0].id, "teacher_id": teacher_records[0].id, "day_of_week": 1, "start_time": "10:20", "room": "301"},
-        {"class_id": classes[5].id, "subject_id": subjects[1].id, "teacher_id": teacher_records[1].id, "day_of_week": 3, "start_time": "09:25", "room": "205"},
-    ]
-    
-    for s in schedule_data:
-        db.add(models.Schedule(**s))
-    db.commit()
-    
-    # ========== ЗАМЕТКИ ==========
-    if len(student_records) >= 2:
-        notes_data = [
-            {"student_id": student_records[0].id, "text": "Подготовиться к контрольной по математике — повторить квадратные уравнения", "date": date(2024, 10, 5)},
-            {"student_id": student_records[0].id, "text": "Долг по домашнему заданию: упр. 245 по русскому языку", "date": date(2024, 10, 12)},
-            {"student_id": student_records[1].id, "text": "Молодец! Отличная работа на уроке физики", "date": date(2024, 10, 8)},
-        ]
-        for n in notes_data:
-            db.add(models.Note(**n))
+    students = []
+    for s in students_data:
+        user = models.User(
+            email=s["email"],
+            full_name=s["name"],
+            hashed_password=auth.get_password_hash("student123"),
+            role="student"
+        )
+        db.add(user)
         db.commit()
-    
-    # ========== СОБЫТИЯ ==========
-    events_data = [
-        {"title": "Контрольная работа", "description": "Итоговая контрольная по математике для 9-х классов", "subject_id": subjects[0].id, "date": date(2024, 12, 20), "time": "08:30"},
-        {"title": "Олимпиада по физике", "description": "Школьный этап олимпиады по физике", "subject_id": subjects[3].id, "date": date(2024, 11, 15), "time": "10:00"},
-        {"title": "Диктант", "description": "Проверочный диктант по русскому языку", "subject_id": subjects[1].id, "date": date(2024, 10, 25), "time": "09:00"},
-    ]
-    
-    for e in events_data:
-        db.add(models.Event(**e))
+        student = models.Student(
+            user_id=user.id,
+            class_id=classes[s["class_idx"]].id
+        )
+        db.add(student)
+        db.commit()
+        students.append(student)
+
+    # ========== ОЦЕНКИ ==========
+    random.seed(42)
+    def get_month(q):
+        return {1: 10, 2: 12, 3: 3, 4: 5}[q]
+
+    for student in students:
+        for subj in subjects[:2]:  # каждый ученик имеет оценки по 2 предметам
+            teacher = next((t for t in teachers if t.subject_id == subj.id), teachers[0])
+            for quarter in [1, 2, 3, 4]:
+                month = get_month(quarter)
+                for _ in range(random.randint(3, 5)):
+                    grade = models.Grade(
+                        student_id=student.id,
+                        subject_id=subj.id,
+                        teacher_id=teacher.id,
+                        grade_type="current",
+                        grade_value=random.choice([3, 4, 4, 5]),
+                        work_type=random.choice(list(models.WORK_TYPES_TEACHER)),
+                        quarter=quarter,
+                        date=date(2024 if month >= 9 else 2025, month, random.randint(1, 28))
+                    )
+                    db.add(grade)
+                q_grade = models.Grade(
+                    student_id=student.id,
+                    subject_id=subj.id,
+                    teacher_id=teacher.id,
+                    grade_type="quarter",
+                    grade_value=round(random.uniform(3.5, 4.8)),
+                    work_type=models.WORK_TYPE_QUARTER,
+                    quarter=quarter,
+                    date=date(2024 if month >= 9 else 2025, month, 25)
+                )
+                db.add(q_grade)
     db.commit()
-    
-    class_names_list = [c.name for c in classes]
-    
+
+    # ========== РАСПИСАНИЕ ==========
+    for cls in classes:
+        for day in [1, 3]:
+            subj = subjects[(cls.id + day) % len(subjects)]
+            teacher = next((t for t in teachers if t.subject_id == subj.id), teachers[0])
+            db.add(models.Schedule(
+                class_id=cls.id,
+                subject_id=subj.id,
+                teacher_id=teacher.id,
+                day_of_week=day,
+                start_time="08:30" if day == 1 else "10:20",
+                room=teacher.room_number
+            ))
+    db.commit()
+
+    # ========== ЗАМЕТКИ ==========
+    notes_data = [
+        {"student_id": students[0].id, "author_id": admin.id, "text": "Подготовиться к контрольной по математике", "date": date(2024, 10, 5)},
+        {"student_id": students[0].id, "author_id": students[0].user_id, "text": "Сдать домашнее задание по русскому до пятницы", "date": date(2024, 10, 12)},
+        {"student_id": students[1].id, "author_id": teachers[0].user_id, "text": "Отличная работа на уроке!", "date": date(2024, 10, 8)},
+        {"student_id": students[2].id, "author_id": admin.id, "text": "Повторить правила по английскому", "date": date(2024, 10, 15)},
+    ]
+    for n in notes_data:
+        db.add(models.Note(**n))
+    db.commit()
+
     db.close()
-    
-    print("База данных успешно инициализирована!")
-    print()
-    print("=" * 60)
+
+    print("=" * 50)
     print("  ТЕСТОВЫЕ АККАУНТЫ")
-    print("=" * 60)
+    print("=" * 50)
     print("  Завуч:")
     print("    admin@school.ru / admin123")
-    print()
-    print("  Учителя:")
-    print("    petrova@school.ru  / teacher123  (Математика)")
-    print("    sidorov@school.ru  / teacher123  (Русский язык)")
-    print("    smirnova@school.ru / teacher123  (Английский)")
-    print("    kozlov@school.ru   / teacher123  (Физика)")
-    print()
-    print("  Ученики (12 человек):")
-    for i, (surname, name, patronymic) in enumerate(student_names):
-        cname = class_names_list[i // 2]
-        print(f"    student{i+1}@school.ru / student123  ({surname} {name} {patronymic}, {cname})")
+    print("\n  Учителя:")
+    for t in teachers_data:
+        print(f"    {t['email']} / teacher123  ({subjects_data[t['subject_idx']]['name']})")
+    print("\n  Ученики:")
+    for s in students_data:
+        print(f"    {s['email']} / student123  ({s['name']})")
+    print("=" * 50)
 
 if __name__ == "__main__":
-    init_db()
+    if len(sys.argv) > 1 and sys.argv[1] == "--migrate":
+        Base.metadata.create_all(bind=engine)
+        migrate_schema()
+        print("Миграция схемы выполнена.")
+    else:
+        init_db()

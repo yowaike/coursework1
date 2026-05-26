@@ -1,0 +1,1892 @@
+﻿================================================================================
+FILE: C:\coursework1\backend\add_alias_users.py
+================================================================================
+from app.database import SessionLocal
+from app import models, auth
+
+# Скрипт добавляет удобные алиасы для тестирования:
+# teacher@school.ru  -> пароль teacher123
+# student@school.ru  -> пароль student123
+
+
+def add_aliases():
+    db = SessionLocal()
+    try:
+        # добавим teacher@school.ru если нет
+        if not db.query(models.User).filter(models.User.email == 'teacher@school.ru').first():
+            # создаём пользователя-учителя
+            user = models.User(
+                email='teacher@school.ru',
+                full_name='Тестовый Учитель',
+                hashed_password=auth.get_password_hash('teacher123'),
+                role='teacher'
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            # пытаемся взять существующий предмет для привязки
+            subj = db.query(models.Subject).first()
+            subj_id = subj.id if subj else 1
+            teacher = models.Teacher(user_id=user.id, subject_id=subj_id, room_number='000')
+            db.add(teacher)
+            db.commit()
+            print('Добавлен teacher@school.ru')
+        else:
+            print('teacher@school.ru уже есть')
+
+        # добавим student@school.ru если нет
+        if not db.query(models.User).filter(models.User.email == 'student@school.ru').first():
+            user = models.User(
+                email='student@school.ru',
+                full_name='Тестовый Ученик',
+                hashed_password=auth.get_password_hash('student123'),
+                role='student'
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            # привяжем к первому классу если он есть
+            cls = db.query(models.Class).first()
+            class_id = cls.id if cls else 1
+            student = models.Student(user_id=user.id, class_id=class_id)
+            db.add(student)
+            db.commit()
+            print('Добавлен student@school.ru')
+        else:
+            print('student@school.ru уже есть')
+
+    finally:
+        db.close()
+
+if __name__ == '__main__':
+    add_aliases()
+
+
+================================================================================
+FILE: C:\coursework1\backend\add_user_profile_columns.py
+================================================================================
+from sqlalchemy import text
+from app.database import engine
+
+with engine.begin() as conn:
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS school varchar(255);"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS city varchar(100);"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS academic_year varchar(50);"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS position varchar(100);"))
+    print('Columns added or already exist')
+
+
+================================================================================
+FILE: C:\coursework1\backend\init_db.py
+================================================================================
+# функция для инициализации базы данных с демо-данными
+from app.database import engine, Base, SessionLocal
+from app import models, auth
+from datetime import date
+
+def init_db():
+    # функция для создания таблиц
+    Base.metadata.create_all(bind=engine)
+    
+    db = SessionLocal()
+    
+    # если данные уже есть — не пересоздаём
+    if db.query(models.User).first():
+        db.close()
+        print("База данных уже содержит данные. Пропускаем инициализацию.")
+        return
+    
+    # ========== 1 ЗАВУЧ ==========
+    admin = models.User(
+        email="admin@school.ru",
+        full_name="Воронцова Елена Сергеевна",
+        hashed_password=auth.get_password_hash("admin123"),
+        role="admin"
+    )
+    db.add(admin)
+    db.commit()
+    
+    # ========== 4 УЧИТЕЛЯ ==========
+    teachers_data = [
+        {"email": "petrova@school.ru", "name": "Петрова Анна Владимировна", "subject": "Математика", "room": "301"},
+        {"email": "sidorov@school.ru", "name": "Сидоров Игорь Николаевич", "subject": "Русский язык", "room": "205"},
+        {"email": "smirnova@school.ru", "name": "Смирнова Ольга Дмитриевна", "subject": "Английский", "room": "412"},
+        {"email": "kozlov@school.ru", "name": "Козлов Дмитрий Алексеевич", "subject": "Физика", "room": "108"},
+    ]
+    
+    subjects = []
+    teachers = []
+    
+    for t in teachers_data:
+        # создаём предмет если нет
+        subj = db.query(models.Subject).filter(models.Subject.name == t["subject"]).first()
+        if not subj:
+            subj = models.Subject(name=t["subject"], description=f"Курс по {t['subject'].lower()}")
+            db.add(subj)
+            db.commit()
+        subjects.append(subj)
+        
+        # создаём пользователя-учителя
+        user = models.User(
+            email=t["email"],
+            full_name=t["name"],
+            hashed_password=auth.get_password_hash("teacher123"),
+            role="teacher"
+        )
+        db.add(user)
+        db.commit()
+        
+        # создаём запись учителя
+        teacher = models.Teacher(user_id=user.id, subject_id=subj.id, room_number=t["room"])
+        db.add(teacher)
+        db.commit()
+        teachers.append(teacher)
+    
+    # ========== 4 КЛАССА ==========
+    classes_data = [
+        {"name": "9А", "year": 2024},
+        {"name": "9Б", "year": 2024},
+        {"name": "10А", "year": 2024},
+        {"name": "10Б", "year": 2024},
+    ]
+    
+    classes = []
+    for c in classes_data:
+        cls = models.Class(**c)
+        db.add(cls)
+        classes.append(cls)
+    db.commit()
+    
+    # ========== 4 УЧЕНИКА (по одному в каждом классе) ==========
+    students_data = [
+        {"email": "ivanov@school.ru", "name": "Иванов Артём Александрович", "class_idx": 0},
+        {"email": "petrova_s@school.ru", "name": "Петрова Мария Сергеевна", "class_idx": 1},
+        {"email": "smirnov@school.ru", "name": "Смирнов Кирилл Дмитриевич", "class_idx": 2},
+        {"email": "kozlova@school.ru", "name": "Козлова Алиса Андреевна", "class_idx": 3},
+    ]
+    
+    students = []
+    for i, s in enumerate(students_data):
+        user = models.User(
+            email=s["email"],
+            full_name=s["name"],
+            hashed_password=auth.get_password_hash("student123"),
+            role="student"
+        )
+        db.add(user)
+        db.commit()
+        
+        student = models.Student(user_id=user.id, class_id=classes[s["class_idx"]].id)
+        db.add(student)
+        db.commit()
+        students.append(student)
+    
+        # ========== ОЦЕНКИ (по 2 предмета на ученика, 4 четверти) ==========
+    import random
+    random.seed(42)
+    
+    # функция для получения месяца по номеру четверти (школьный год: сен-май)
+    def get_month_for_quarter(quarter):
+        return {1: 10, 2: 12, 3: 3, 4: 5}[quarter]  # Окт, Дек, Мар, Май
+    
+    for student in students:
+        # каждый ученик имеет оценки по 2 предметам
+        student_subjects = subjects[student.id % 2:student.id % 2 + 2]
+        
+        for subj in student_subjects:
+            # находим учителя этого предмета
+            teacher = next((t for t in teachers if t.subject_id == subj.id), teachers[0])
+            
+            for quarter in [1, 2, 3, 4]:
+                month = get_month_for_quarter(quarter)
+                # 3-5 текущих оценок за четверть
+                for _ in range(random.randint(3, 5)):
+                    grade = models.Grade(
+                        student_id=student.id,
+                        subject_id=subj.id,
+                        teacher_id=teacher.id,
+                        grade_type="current",
+                        grade_value=random.choice([3, 4, 4, 5]),  # без двоек для демо
+                        work_type=random.choice(["КР", "ДЗ", "ОТВ"]),
+                        quarter=quarter,
+                        date=date(2024 if month >= 9 else 2025, month, random.randint(1, 28))
+                    )
+                    db.add(grade)
+                
+                # четвертная оценка (среднее текущих)
+                q_avg = round(random.uniform(3.5, 4.8))
+                q_grade = models.Grade(
+                    student_id=student.id,
+                    subject_id=subj.id,
+                    teacher_id=teacher.id,
+                    grade_type="quarter",
+                    grade_value=q_avg,
+                    work_type="ЧЕТВ",
+                    quarter=quarter,
+                    date=date(2024 if month >= 9 else 2025, month, 25)
+                )
+                db.add(q_grade)
+    
+    db.commit()
+    
+    # ========== РАСПИСАНИЕ (по 2 урока на класс) ==========
+    schedule_data = []
+    for cls in classes:
+        # 2 урока в неделю для каждого класса
+        for day in [1, 3]:  # Пн и Ср
+            subj = subjects[(cls.id + day) % len(subjects)]
+            teacher = next((t for t in teachers if t.subject_id == subj.id), teachers[0])
+            schedule_data.append({
+                "class_id": cls.id,
+                "subject_id": subj.id,
+                "teacher_id": teacher.id,
+                "day_of_week": day,
+                "start_time": "08:30" if day == 1 else "10:20",
+                "room": teacher.room_number
+            })
+    
+    for s in schedule_data:
+        db.add(models.Schedule(**s))
+    db.commit()
+    
+    # ========== ЗАМЕТКИ (по 1-2 на ученика) ==========
+    notes_data = [
+        {"student_id": students[0].id, "text": "Подготовиться к контрольной по математике", "date": date(2024, 10, 5)},
+        {"student_id": students[0].id, "text": "Сдать домашнее задание по русскому до пятницы", "date": date(2024, 10, 12)},
+        {"student_id": students[1].id, "text": "Отличная работа на уроке!", "date": date(2024, 10, 8)},
+        {"student_id": students[2].id, "text": "Повторить правила по английскому", "date": date(2024, 10, 15)},
+    ]
+    
+    for n in notes_data:
+        db.add(models.Note(**n))
+    db.commit()
+    
+    db.close()
+    
+    # вывод тестовых аккаунтов
+    print("  ТЕСТОВЫЕ АККАУНТЫ")
+    print("  Завуч:")
+    print("    admin@school.ru / admin123")
+    print("\n  Учителя:")
+    for t in teachers_data:
+        print(f"    {t['email']} / teacher123  ({t['subject']})")
+    print("\n  Ученики:")
+    for s in students_data:
+        print(f"    {s['email']} / student123  ({s['name']})")
+
+if __name__ == "__main__":
+    init_db()
+
+================================================================================
+FILE: C:\coursework1\backend\__init__.py
+================================================================================
+
+
+================================================================================
+FILE: C:\coursework1\backend\app\auth.py
+================================================================================
+from passlib.context import CryptContext
+from datetime import datetime, timedelta, timezone
+from jose import jwt
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Контекст для хеширования паролей (bcrypt)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Настройки JWT
+SECRET_KEY = "coursework_secret_key_12345"
+ALGORITHM = "HS256"
+
+# Функция для хеширования пароля
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+# Функция для проверки пароля
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+# Функция для создания JWT токена
+def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=30))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+================================================================================
+FILE: C:\coursework1\backend\app\database.py
+================================================================================
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
+
+DATABASE_URL = "postgresql://postgres:1234@127.0.0.1:5432/school_diary"
+
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"client_encoding": "utf8"}
+)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+================================================================================
+FILE: C:\coursework1\backend\app\dependencies.py
+================================================================================
+from fastapi import Depends, HTTPException, Request
+from jose import jwt, JWTError
+
+# функция для получения данных пользователя из JWT токена в cookie
+async def get_current_user(request: Request):
+    from .auth import SECRET_KEY, ALGORITHM  # импорт внутри функции
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Не авторизован")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return {"email": payload.get("sub"), "role": payload.get("role")}
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Токен невалиден")
+
+# функция-фабрика для проверки роли пользователя
+def require_role(role: str):
+    async def role_checker(user: dict = Depends(get_current_user)):
+        if user["role"] != role:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        return user
+    return role_checker
+
+# функция-фабрика для проверки нескольких ролей пользователя
+def require_roles(roles: list[str]):
+    async def role_checker(user: dict = Depends(get_current_user)):
+        if user["role"] not in roles:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        return user
+    return role_checker
+
+================================================================================
+FILE: C:\coursework1\backend\app\main.py
+================================================================================
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
+from app.database import engine, Base
+from app.routers import auth, students, teachers, classes, subjects, grades, schedule, analytics, notes
+
+app = FastAPI(title="Электронный дневничок")
+
+# настройка путей
+# main.py лежит в backend/app/main.py, поэтому:
+# родитель main.py = backend/app
+# родитель app = backend
+# родитель backend = coursework1 (корень)
+BACKEND_DIR = Path(__file__).resolve().parent.parent  # backend/
+ROOT_DIR = BACKEND_DIR.parent  # coursework1/
+
+# Монтируем статику
+static_dir = ROOT_DIR / "frontend" / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# Шаблоны
+templates_dir = BACKEND_DIR / "templates"
+templates = Jinja2Templates(directory=str(templates_dir))
+
+# Подключение роутеров
+app.include_router(auth.router, prefix="/api/auth", tags=["авторизация"])
+app.include_router(students.router, prefix="/api/students", tags=["ученики"])
+app.include_router(teachers.router, prefix="/api/teachers", tags=["учителя"])
+app.include_router(classes.router, prefix="/api/classes", tags=["классы"])
+app.include_router(subjects.router, prefix="/api/subjects", tags=["предметы"])
+app.include_router(grades.router, prefix="/api/grades", tags=["оценки"])
+app.include_router(schedule.router, prefix="/api/schedule", tags=["расписание"])
+app.include_router(analytics.router, prefix="/api/analytics", tags=["аналитика"])
+app.include_router(notes.router, prefix="/api/notes", tags=["заметки"])
+
+# Главная страница
+@app.get("/", response_class=HTMLResponse)
+def read_root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+# Дашборд
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request):
+    return templates.TemplateResponse("dashboard.html", {"request": request})
+
+================================================================================
+FILE: C:\coursework1\backend\app\models.py
+================================================================================
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from .database import Base
+from datetime import datetime
+
+# модели таблиц базы данных
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(255), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    role = Column(String(20), nullable=False)
+    # Дополнительные профильные поля
+    school = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True)
+    academic_year = Column(String(50), nullable=True)
+    position = Column(String(100), nullable=True)
+
+    teacher = relationship("Teacher", back_populates="user", uselist=False)
+    student = relationship("Student", back_populates="user", uselist=False)
+
+class Teacher(Base):
+    __tablename__ = "teachers"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    room_number = Column(String(20))
+
+    user = relationship("User", back_populates="teacher")
+    subject = relationship("Subject", back_populates="teachers")
+    grades = relationship("Grade", back_populates="teacher")
+    schedule_items = relationship("Schedule", back_populates="teacher")
+
+class Student(Base):
+    __tablename__ = "students"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    class_id = Column(Integer, ForeignKey("classes.id"), nullable=False)
+
+    user = relationship("User", back_populates="student")
+    class_group = relationship("Class", back_populates="students")
+    grades = relationship("Grade", back_populates="student")
+    notes = relationship("Note", back_populates="student")
+
+class Class(Base):
+    __tablename__ = "classes"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(10), nullable=False)
+    year = Column(Integer, nullable=False)
+
+    students = relationship("Student", back_populates="class_group")
+    schedule_items = relationship("Schedule", back_populates="class_group")
+
+class Subject(Base):
+    __tablename__ = "subjects"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text)
+
+    teachers = relationship("Teacher", back_populates="subject")
+    grades = relationship("Grade", back_populates="subject")
+    schedule_items = relationship("Schedule", back_populates="subject")
+    events = relationship("Event", back_populates="subject")
+
+class Grade(Base):
+    __tablename__ = "grades"
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    grade_type = Column(String(20), nullable=False)
+    grade_value = Column(Integer, nullable=False)
+    work_type = Column(String(50))
+    quarter = Column(Integer, nullable=False)
+    date = Column(Date, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    student = relationship("Student", back_populates="grades")
+    subject = relationship("Subject", back_populates="grades")
+    teacher = relationship("Teacher", back_populates="grades")
+
+class Schedule(Base):
+    __tablename__ = "schedule"
+    id = Column(Integer, primary_key=True, index=True)
+    class_id = Column(Integer, ForeignKey("classes.id"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    day_of_week = Column(Integer, nullable=False)
+    start_time = Column(String(5), nullable=False)
+    room = Column(String(10))
+
+    class_group = relationship("Class", back_populates="schedule_items")
+    subject = relationship("Subject", back_populates="schedule_items")
+    teacher = relationship("Teacher", back_populates="schedule_items")
+
+class Note(Base):
+    __tablename__ = "notes"
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    text = Column(Text, nullable=False)
+    date = Column(Date, nullable=False)
+
+    student = relationship("Student", back_populates="notes")
+
+class Event(Base):
+    __tablename__ = "events"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text)
+    subject_id = Column(Integer, ForeignKey("subjects.id"))
+    date = Column(Date, nullable=False)
+    time = Column(String(5))
+
+    subject = relationship("Subject", back_populates="events")
+
+================================================================================
+FILE: C:\coursework1\backend\app\schemas.py
+================================================================================
+from pydantic import BaseModel, ConfigDict
+from typing import Optional
+from datetime import date
+
+# схемы для валидации данных
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    full_name: str
+    role: str
+
+class UserOut(BaseModel):
+    id: int
+    full_name: str
+    email: str
+    role: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+class StudentBase(BaseModel):
+    user_id: int
+    class_id: int
+
+class StudentCreate(StudentBase):
+    pass
+
+class StudentUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    class_id: Optional[int] = None
+    password: Optional[str] = None
+
+class StudentOut(BaseModel):
+    id: int
+    class_id: int
+    class_name: Optional[str] = None
+    user: UserOut
+
+    model_config = ConfigDict(from_attributes=True)
+
+class TeacherBase(BaseModel):
+    user_id: int
+    subject_id: int
+    room_number: Optional[str] = None
+
+class TeacherCreate(TeacherBase):
+    pass
+
+class TeacherUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    subject_id: Optional[int] = None
+    room_number: Optional[str] = None
+    password: Optional[str] = None
+
+class TeacherOut(BaseModel):
+    id: int
+    subject_id: int
+    subject_name: Optional[str] = None
+    room_number: Optional[str] = None
+    user: UserOut
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ClassCreate(BaseModel):
+    name: str
+    year: int
+
+class SubjectCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class ScheduleCreate(BaseModel):
+    class_id: int
+    subject_id: int
+    teacher_id: int
+    day_of_week: int
+    start_time: str
+    room: Optional[str] = None
+
+class NoteCreate(BaseModel):
+    student_id: int
+    text: str
+    date: date
+
+class GradeCreate(BaseModel):
+    student_id: int
+    subject_id: Optional[int] = None  # опционально — для учителя подставится автоматически
+    teacher_id: Optional[int] = None  # опционально — для учителя подставится автоматически
+    grade_type: str
+    grade_value: int
+    work_type: str
+    quarter: int
+    date: date
+
+class GradeUpdate(BaseModel):
+    subject_id: Optional[int] = None
+    teacher_id: Optional[int] = None
+    grade_type: Optional[str] = None
+    grade_value: Optional[int] = None
+    work_type: Optional[str] = None
+    quarter: Optional[int] = None
+    date: Optional[date] = None
+
+================================================================================
+FILE: C:\coursework1\backend\app\__init__.py
+================================================================================
+
+
+================================================================================
+FILE: C:\coursework1\backend\app\routers\analytics.py
+================================================================================
+from fastapi import APIRouter, Depends
+from sqlalchemy import func, select, distinct
+from sqlalchemy.orm import Session
+from ..database import get_db
+from .. import models
+from ..dependencies import require_role
+
+router = APIRouter()
+
+# функция для подсчёта неуспевающих учеников (оценка < 3)
+@router.get("/failing")
+def get_failing_count(
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role("admin"))
+):
+    count = db.query(func.count(distinct(models.Grade.student_id))).filter(
+        models.Grade.grade_value < 3
+    ).scalar() or 0
+    return {"failing_count": count}
+
+# функция для средней оценки по всем классам
+@router.get("/classes_avg")
+def get_classes_avg(
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role("admin"))
+):
+    query = select(
+        models.Class.name.label("class_name"),
+        func.avg(models.Grade.grade_value).label("avg_grade")
+    ).select_from(models.Class).join(
+        models.Student, models.Student.class_id == models.Class.id
+    ).join(
+        models.Grade, models.Grade.student_id == models.Student.id
+    ).group_by(models.Class.id, models.Class.name).order_by(
+        func.avg(models.Grade.grade_value).desc()
+    )
+    
+    result = db.execute(query).all()
+    output = []
+    for row in result:
+        avg_val = float(row.avg_grade) if row.avg_grade else 0.0
+        output.append({
+            "class": row.class_name,
+            "avg": round(avg_val, 2)
+        })
+    return output
+
+# функция для поиска лучшего и худшего класса
+@router.get("/best_worst_class")
+def get_extreme_classes(
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role("admin"))
+):
+    query = select(
+        models.Class.name.label("class_name"),
+        func.avg(models.Grade.grade_value).label("avg_grade")
+    ).select_from(models.Class).join(
+        models.Student, models.Student.class_id == models.Class.id
+    ).join(
+        models.Grade, models.Grade.student_id == models.Student.id
+    ).group_by(models.Class.id, models.Class.name)
+    
+    result = db.execute(query).all()
+    if not result:
+        return {"best": None, "worst": None}
+    
+    classes_list = []
+    for row in result:
+        avg_val = float(row.avg_grade) if row.avg_grade else 0.0
+        classes_list.append({
+            "class": row.class_name,
+            "avg": round(avg_val, 2)
+        })
+    
+    best = max(classes_list, key=lambda x: x["avg"])
+    worst = min(classes_list, key=lambda x: x["avg"])
+    return {"best": best, "worst": worst}
+
+# функция для получения успеваемости по заданному предмету
+@router.get("/subject/{subject_id}")
+def get_subject_analytics(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role("admin"))
+):
+    avg = db.query(func.avg(models.Grade.grade_value)).filter(
+        models.Grade.subject_id == subject_id
+    ).scalar()
+    avg_val = float(avg) if avg else 0.0
+    return {"subject_id": subject_id, "average": round(avg_val, 2)}
+
+# функция для поиска учителя с самой низкой успеваемостью учеников
+@router.get("/worst_teacher")
+def get_worst_teacher(
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role("admin"))
+):
+    query = select(
+        models.Teacher.id.label("teacher_id"),
+        models.User.full_name.label("teacher_name"),
+        func.avg(models.Grade.grade_value).label("avg_grade")
+    ).select_from(models.Teacher).join(
+        models.User, models.User.id == models.Teacher.user_id
+    ).join(
+        models.Grade, models.Grade.teacher_id == models.Teacher.id
+    ).group_by(models.Teacher.id, models.User.full_name).order_by(
+        func.avg(models.Grade.grade_value).asc()
+    ).limit(1)
+    
+    result = db.execute(query).first()
+    if result:
+        avg_val = float(result.avg_grade) if result.avg_grade else 0.0
+        return {
+            "teacher": result.teacher_name,
+            "avg_grade": round(avg_val, 2)
+        }
+    return {"teacher": None, "avg_grade": None}
+
+================================================================================
+FILE: C:\coursework1\backend\app\routers\auth.py
+================================================================================
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from jose import jwt
+from pydantic import BaseModel
+from typing import Optional
+from ..database import get_db
+from .. import models, auth as auth_utils
+from ..auth import SECRET_KEY, ALGORITHM
+from ..dependencies import get_current_user
+
+router = APIRouter()
+
+class UpdateProfileRequest(BaseModel):
+    full_name: Optional[str] = None
+    school: Optional[str] = None
+    city: Optional[str] = None
+    academic_year: Optional[str] = None
+    position: Optional[str] = None
+    # teacher-specific
+    subject_id: Optional[int] = None
+    room_number: Optional[str] = None
+
+# функция для входа пользователя
+@router.post("/login")
+def login(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    if not user or not auth_utils.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Неверный email или пароль")
+
+    token = auth_utils.create_access_token(data={"sub": user.email, "role": user.role})
+
+    response = JSONResponse(content={"msg": "вход выполнен", "role": user.role})
+    response.set_cookie(
+    key="access_token",
+    value=token,
+    httponly=True,
+    max_age=1800,
+    samesite="lax",  # ← замени на "None" если нужно
+    secure=False,    # ← оставь False для localhost
+    path="/"
+)
+    return response
+
+# функция для получения текущего пользователя
+@router.get("/me")
+def get_me(request: Request, db: Session = Depends(get_db)):
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Не авторизован")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        user = db.query(models.User).filter(models.User.email == email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+        result = {"email": user.email, "role": user.role, "full_name": user.full_name}
+        # include profile fields if present
+        result.update({
+            "school": user.school,
+            "city": user.city,
+            "academic_year": user.academic_year,
+            "position": user.position
+        })
+        # если учитель — попытаемся вернуть данные учителя
+        if user.role == 'teacher':
+            teacher = db.query(models.Teacher).filter(models.Teacher.user_id == user.id).first()
+            if teacher:
+                result.update({
+                    "teacher_id": teacher.id,
+                    "subject_id": teacher.subject_id,
+                    "subject_name": teacher.subject.name if teacher.subject else None,
+                    "room_number": teacher.room_number
+                })
+        return result
+    except Exception:
+        raise HTTPException(status_code=401, detail="Токен истёк или невалиден")
+
+# функция для обновления профиля
+@router.put("/update-profile")
+async def update_profile(
+    data: UpdateProfileRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    user_data = await get_current_user(request)
+    user = db.query(models.User).filter(models.User.email == user_data["email"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    updated = False
+    if data.full_name is not None:
+        user.full_name = data.full_name; updated = True
+    if data.school is not None:
+        user.school = data.school; updated = True
+    if data.city is not None:
+        user.city = data.city; updated = True
+    if data.academic_year is not None:
+        user.academic_year = data.academic_year; updated = True
+    if data.position is not None:
+        user.position = data.position; updated = True
+
+    # если учитель — обновим запись в teachers
+    if user.role == 'teacher' and (data.subject_id is not None or data.room_number is not None):
+        teacher = db.query(models.Teacher).filter(models.Teacher.user_id == user.id).first()
+        if teacher:
+            if data.subject_id is not None:
+                teacher.subject_id = data.subject_id; updated = True
+            if data.room_number is not None:
+                teacher.room_number = data.room_number; updated = True
+
+    if updated:
+        db.commit()
+        db.refresh(user)
+
+    return {"msg": "Профиль обновлён", "full_name": user.full_name, "school": user.school, "city": user.city, "academic_year": user.academic_year, "position": user.position}
+
+# функция для выхода
+@router.post("/logout")
+def logout():
+    response = JSONResponse(content={"msg": "выход выполнен"})
+    response.delete_cookie(key="access_token", path="/")
+    return response
+
+================================================================================
+FILE: C:\coursework1\backend\app\routers\classes.py
+================================================================================
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from ..database import get_db
+from .. import models
+from ..dependencies import require_role
+from ..schemas import ClassCreate
+
+router = APIRouter()
+
+# получить все классы (только завуч)
+@router.get("/")
+async def get_classes(db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
+    classes = db.query(models.Class).all()
+    return [
+        {
+            "id": cls.id,
+            "name": cls.name,
+            "year": cls.year
+        }
+        for cls in classes
+    ]
+
+# создать класс (только завуч)
+@router.post("/")
+async def create_class(data: ClassCreate, db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
+    new_class = models.Class(**data.dict())
+    db.add(new_class)
+    db.commit()
+    db.refresh(new_class)
+    return {
+        "id": new_class.id,
+        "name": new_class.name,
+        "year": new_class.year
+    }
+
+# удалить класс (только завуч)
+@router.delete("/{class_id}")
+async def delete_class(class_id: int, db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
+    cls = db.query(models.Class).filter(models.Class.id == class_id).first()
+    if not cls:
+        raise HTTPException(status_code=404, detail="Класс не найден")
+    db.delete(cls)
+    db.commit()
+    return {"message": "Класс удален"}
+
+
+================================================================================
+FILE: C:\coursework1\backend\app\routers\grades.py
+================================================================================
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from sqlalchemy.orm import Session, joinedload
+from ..database import get_db
+from .. import models
+from ..dependencies import get_current_user, require_role, require_roles
+from ..schemas import GradeCreate, GradeUpdate
+
+router = APIRouter()
+
+# функция для просмотра оценок (завуч — все, учитель — только свои)
+@router.get("/")
+async def get_grades(
+    student_id: int = Query(None),
+    class_id: int = Query(None),
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_roles(["admin", "teacher"]))
+):
+    query = db.query(models.Grade)
+
+    if user["role"] == "teacher":
+        teacher = db.query(models.Teacher).join(models.User).filter(
+            models.User.email == user["email"]
+        ).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Профиль учителя не найден")
+        query = query.filter(models.Grade.teacher_id == teacher.id)
+
+    if student_id:
+        query = query.filter(models.Grade.student_id == student_id)
+
+    if class_id:
+        query = query.join(models.Grade.student).filter(models.Student.class_id == class_id)
+    
+    grades = query.options(
+        joinedload(models.Grade.student).joinedload(models.Student.user),
+        joinedload(models.Grade.subject)
+    ).all()
+    return [
+        {
+            "id": grade.id,
+            "student_id": grade.student_id,
+            "student_name": grade.student.user.full_name if grade.student and grade.student.user else None,
+            "class_id": grade.student.class_id if grade.student else None,
+            "subject_id": grade.subject_id,
+            "subject_name": grade.subject.name if grade.subject else None,
+            "teacher_id": grade.teacher_id,
+            "grade_type": grade.grade_type,
+            "grade_value": grade.grade_value,
+            "work_type": grade.work_type,
+            "quarter": grade.quarter,
+            "date": str(grade.date)
+        }
+        for grade in grades
+    ]
+
+# функция для получения оценок текущего ученика
+@router.get("/my")
+async def get_my_grades(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role("student"))
+):
+    student = db.query(models.Student).join(models.User).filter(
+        models.User.email == user["email"]
+    ).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Профиль ученика не найден")
+    grades = db.query(models.Grade).filter(models.Grade.student_id == student.id).all()
+    return [
+        {
+            "id": grade.id,
+            "student_id": grade.student_id,
+            "subject_id": grade.subject_id,
+            "subject_name": grade.subject.name if grade.subject else None,
+            "teacher_id": grade.teacher_id,
+            "grade_type": grade.grade_type,
+            "grade_value": grade.grade_value,
+            "work_type": grade.work_type,
+            "quarter": grade.quarter,
+            "date": str(grade.date)
+        }
+        for grade in grades
+    ]
+
+# функция для выставления оценки (завуч и учитель)
+@router.post("/")
+async def add_grade(
+    data: GradeCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_roles(["admin", "teacher"]))
+):
+    grade_data = data.dict()
+    student = db.query(models.Student).filter(models.Student.id == grade_data["student_id"]).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Ученик не найден")
+
+    if user["role"] == "teacher":
+        teacher = db.query(models.Teacher).join(models.User).filter(
+            models.User.email == user["email"]
+        ).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Профиль учителя не найден")
+        grade_data["teacher_id"] = teacher.id
+        grade_data["subject_id"] = teacher.subject_id
+    else:
+        if not grade_data.get("subject_id"):
+            raise HTTPException(status_code=400, detail="Предмет обязателен")
+        if not grade_data.get("teacher_id"):
+            raise HTTPException(status_code=400, detail="Учитель обязателен")
+        teacher = db.query(models.Teacher).filter(models.Teacher.id == grade_data["teacher_id"]).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Учитель не найден")
+        if teacher.subject_id != grade_data["subject_id"]:
+            raise HTTPException(status_code=400, detail="Учитель не ведёт выбранный предмет")
+
+    subject = db.query(models.Subject).filter(models.Subject.id == grade_data["subject_id"]).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Предмет не найден")
+
+    new_grade = models.Grade(**grade_data)
+    db.add(new_grade)
+    db.commit()
+    db.refresh(new_grade)
+    return {
+        "id": new_grade.id,
+        "student_id": new_grade.student_id,
+        "subject_id": new_grade.subject_id,
+        "teacher_id": new_grade.teacher_id,
+        "grade_type": new_grade.grade_type,
+        "grade_value": new_grade.grade_value,
+        "work_type": new_grade.work_type,
+        "quarter": new_grade.quarter,
+        "date": str(new_grade.date)
+    }
+
+
+@router.put("/{grade_id}")
+async def update_grade(
+    grade_id: int,
+    data: GradeUpdate,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_roles(["admin", "teacher"]))
+):
+    grade = db.query(models.Grade).filter(models.Grade.id == grade_id).first()
+    if not grade:
+        raise HTTPException(status_code=404, detail="Оценка не найдена")
+
+    if user["role"] == "teacher":
+        teacher = db.query(models.Teacher).join(models.User).filter(
+            models.User.email == user["email"]
+        ).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Профиль учителя не найден")
+        if grade.teacher_id != teacher.id:
+            raise HTTPException(status_code=403, detail="Нет доступа к этой оценке")
+
+    if data.subject_id is not None:
+        subject = db.query(models.Subject).filter(models.Subject.id == data.subject_id).first()
+        if not subject:
+            raise HTTPException(status_code=404, detail="Предмет не найден")
+        grade.subject_id = data.subject_id
+
+    if data.teacher_id is not None:
+        teacher = db.query(models.Teacher).filter(models.Teacher.id == data.teacher_id).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Учитель не найден")
+        if data.subject_id is not None and teacher.subject_id != data.subject_id:
+            raise HTTPException(status_code=400, detail="Учитель не ведёт выбранный предмет")
+        grade.teacher_id = data.teacher_id
+        if data.subject_id is None:
+            grade.subject_id = teacher.subject_id
+
+    if data.grade_type is not None:
+        grade.grade_type = data.grade_type
+    if data.grade_value is not None:
+        grade.grade_value = data.grade_value
+    if data.work_type is not None:
+        grade.work_type = data.work_type
+    if data.quarter is not None:
+        grade.quarter = data.quarter
+    if data.date is not None:
+        grade.date = data.date
+
+    db.commit()
+    db.refresh(grade)
+    return {"msg": "Оценка обновлена", "id": grade.id}
+
+
+@router.delete("/{grade_id}")
+async def delete_grade(
+    grade_id: int,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_roles(["admin", "teacher"]))
+):
+    grade = db.query(models.Grade).filter(models.Grade.id == grade_id).first()
+    if not grade:
+        raise HTTPException(status_code=404, detail="Оценка не найдена")
+
+    if user["role"] == "teacher":
+        teacher = db.query(models.Teacher).join(models.User).filter(
+            models.User.email == user["email"]
+        ).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Профиль учителя не найден")
+        if grade.teacher_id != teacher.id:
+            raise HTTPException(status_code=403, detail="Нет доступа к этой оценке")
+
+    db.delete(grade)
+    db.commit()
+    return {"msg": "Оценка удалена"}
+
+
+================================================================================
+FILE: C:\coursework1\backend\app\routers\notes.py
+================================================================================
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from sqlalchemy.orm import Session
+from ..database import get_db
+from .. import models
+from ..dependencies import get_current_user, require_roles
+from ..schemas import NoteCreate
+
+router = APIRouter()
+
+# функция для получения заметок (ученик — свои, завуч — все)
+@router.get("/")
+async def get_notes(
+    request: Request,
+    student_id: int = Query(None),
+    db: Session = Depends(get_db)
+):
+    user = await get_current_user(request)
+    query = db.query(models.Note)
+    
+    if user["role"] == "student":
+        # ученик видит только свои заметки
+        student = db.query(models.Student).join(models.User).filter(
+            models.User.email == user["email"]
+        ).first()
+        if student:
+            query = query.filter(models.Note.student_id == student.id)
+        else:
+            return []
+    elif user["role"] == "admin":
+        # завуч может фильтровать по student_id
+        if student_id:
+            query = query.filter(models.Note.student_id == student_id)
+    else:
+        # учитель — пока пустой список
+        return []
+    
+    notes = query.all()
+    return [
+        {
+            "id": note.id,
+            "student_id": note.student_id,
+            "student_name": note.student.user.full_name if note.student and note.student.user else None,
+            "text": note.text,
+            "date": str(note.date)
+        }
+        for note in notes
+    ]
+
+# функция для создания заметки (ученик — себе, завуч — любому)
+@router.post("/")
+async def add_note(
+    data: NoteCreate,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    user = await get_current_user(request)
+    
+    if user["role"] == "student":
+        # ученик может создавать заметки только для себя
+        student = db.query(models.Student).join(models.User).filter(
+            models.User.email == user["email"]
+        ).first()
+        if not student:
+            raise HTTPException(status_code=404, detail="Профиль ученика не найден")
+        if student.id != data.student_id:
+            raise HTTPException(status_code=403, detail="Вы можете создавать заметки только для себя")
+    elif user["role"] == "admin":
+        # завуч может создавать заметки для любого ученика
+        pass
+    else:
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    
+    new_note = models.Note(**data.dict())
+    db.add(new_note)
+    db.commit()
+    db.refresh(new_note)
+    return {
+        "id": new_note.id,
+        "student_id": new_note.student_id,
+        "text": new_note.text,
+        "date": str(new_note.date)
+    }
+
+================================================================================
+FILE: C:\coursework1\backend\app\routers\schedule.py
+================================================================================
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session, joinedload
+from ..database import get_db
+from .. import models
+from ..dependencies import get_current_user, require_role
+from ..schemas import ScheduleCreate
+
+router = APIRouter()
+
+# функция для получения расписания (доступно всем авторизованным)
+@router.get("/")
+def get_schedule(
+    class_id: int = None,
+    teacher_id: int = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    query = db.query(models.Schedule).options(
+        joinedload(models.Schedule.class_group),
+        joinedload(models.Schedule.subject),
+        joinedload(models.Schedule.teacher).joinedload(models.Teacher.user)
+    )
+    if class_id is not None:
+        query = query.filter(models.Schedule.class_id == class_id)
+    if teacher_id is not None:
+        query = query.filter(models.Schedule.teacher_id == teacher_id)
+
+    schedule = query.all()
+    
+    result = []
+    for s in schedule:
+        result.append({
+            "id": s.id,
+            "day_of_week": s.day_of_week,
+            "start_time": s.start_time,
+            "class_id": s.class_id,
+            "class_name": s.class_group.name if s.class_group else None,
+            "subject_id": s.subject_id,
+            "subject_name": s.subject.name if s.subject else None,
+            "teacher_id": s.teacher_id,
+            "teacher_name": s.teacher.user.full_name if s.teacher and s.teacher.user else None,
+            "room": s.room
+        })
+    return result
+
+# функция для добавления урока в расписание (только завуч)
+@router.post("/", dependencies=[Depends(require_role("admin"))])
+def create_schedule_item(data: ScheduleCreate, db: Session = Depends(get_db)):
+    new_item = models.Schedule(**data.dict())
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
+    return {"id": new_item.id, "msg": "Запись добавлена"}
+
+# функция для удаления урока из расписания (только завуч)
+@router.delete("/{item_id}", dependencies=[Depends(require_role("admin"))])
+def delete_schedule_item(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(models.Schedule).filter(models.Schedule.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+    db.delete(item)
+    db.commit()
+    return {"msg": "Запись удалена"}
+
+================================================================================
+FILE: C:\coursework1\backend\app\routers\students.py
+================================================================================
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session, joinedload
+from ..database import get_db
+from .. import models
+from ..dependencies import get_current_user, require_role
+from ..auth import get_password_hash
+from ..schemas import StudentUpdate
+
+router = APIRouter()
+
+# функция для получения списка учеников (только завуч)
+@router.get("/")
+def get_students(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role("admin"))
+):
+    students = db.query(models.Student).options(
+        joinedload(models.Student.user),
+        joinedload(models.Student.class_group)
+    ).all()
+    
+    result = []
+    for s in students:
+        result.append({
+            "id": s.id,
+            "user": {
+                "full_name": s.user.full_name if s.user else None,
+                "email": s.user.email if s.user else None
+            } if s.user else None,
+            "class_id": s.class_id,
+            "class_name": s.class_group.name if s.class_group else None
+        })
+    return result
+
+# функция для получения списка учеников текущего пользователя
+@router.get("/my")
+async def get_my_students(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user)
+):
+    if user["role"] == "admin":
+        students = db.query(models.Student).options(
+            joinedload(models.Student.user),
+            joinedload(models.Student.class_group)
+        ).all()
+    elif user["role"] == "teacher":
+        teacher = db.query(models.Teacher).join(models.User).filter(models.User.email == user["email"]).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Профиль учителя не найден")
+        class_ids = [item.class_id for item in db.query(models.Schedule).filter(models.Schedule.teacher_id == teacher.id).all()]
+        if not class_ids:
+            return []
+        students = db.query(models.Student).options(
+            joinedload(models.Student.user),
+            joinedload(models.Student.class_group)
+        ).filter(models.Student.class_id.in_(class_ids)).all()
+    elif user["role"] == "student":
+        student = db.query(models.Student).join(models.User).filter(models.User.email == user["email"]).first()
+        if not student:
+            raise HTTPException(status_code=404, detail="Профиль ученика не найден")
+        students = [student]
+    else:
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+
+    result = []
+    for s in students:
+        result.append({
+            "id": s.id,
+            "user": {
+                "full_name": s.user.full_name if s.user else None,
+                "email": s.user.email if s.user else None
+            } if s.user else None,
+            "class_id": s.class_id,
+            "class_name": s.class_group.name if s.class_group else None
+        })
+    return result
+
+# функция для получения профиля текущего ученика
+@router.get("/me")
+async def get_my_student_profile(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Только для учеников")
+    student = db.query(models.Student).options(
+        joinedload(models.Student.user),
+        joinedload(models.Student.class_group)
+    ).join(models.User).filter(
+        models.User.email == user["email"]
+    ).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Профиль ученика не найден")
+    return {
+        "id": student.id,
+        "user": {
+            "full_name": student.user.full_name if student.user else None,
+            "email": student.user.email if student.user else None
+        } if student.user else None,
+        "class_id": student.class_id,
+        "class_name": student.class_group.name if student.class_group else None
+    }
+
+# функция для добавления ученика (только завуч)
+@router.post("/")
+def create_student(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    email = data.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email обязателен")
+    existing = db.query(models.User).filter(models.User.email == email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email уже используется")
+
+    # Создаём пользователя и запись ученика атомарно
+    try:
+        user = models.User(
+            full_name=data.get("full_name", "Новый ученик"),
+            email=email,
+            hashed_password=get_password_hash(data.get("password", "student123")),
+            role="student"
+        )
+        db.add(user)
+        db.flush()
+
+        student = models.Student(user_id=user.id, class_id=data.get("class_id", 1))
+        db.add(student)
+        db.commit()
+        db.refresh(student)
+        return {"id": student.id, "msg": "Ученик создан"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+# функция для удаления ученика (только завуч)
+@router.delete("/{student_id}")
+def delete_student(student_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    student = db.query(models.Student).filter(models.Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Ученик не найден")
+    
+    try:
+        # удаляем связанные оценки и заметки
+        db.query(models.Grade).filter(models.Grade.student_id == student.id).delete()
+        db.query(models.Note).filter(models.Note.student_id == student.id).delete()
+        # сохраняем user_id перед удалением
+        user_id = student.user_id
+        db.delete(student)
+        db.flush()
+
+        # удаляем пользователя, если он есть и роль student
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if user and user.role == 'student':
+            db.delete(user)
+
+        db.commit()
+        return {"msg": "Ученик удалён"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sync", dependencies=[Depends(require_role("admin"))])
+def sync_student_accounts(db: Session = Depends(get_db)):
+    """Синхронизирует записи: если у Student нет связанного User — создаёт его; если есть User со ролью student без Student — создаёт запись Student."""
+    created = []
+    # 1) для студентов без user_id (или с несуществующим пользователем) — создаём User
+    students = db.query(models.Student).all()
+    for s in students:
+        user = db.query(models.User).filter(models.User.id == s.user_id).first()
+        if not user:
+            # создаём учётку с placeholder email
+            base_email = (s.user.full_name.replace(' ', '').lower() if getattr(s, 'user', None) and s.user and s.user.full_name else f'student{s.id}')
+            email = f"{base_email}@school.local"
+            # гарантируем уникальность
+            i = 1
+            while db.query(models.User).filter(models.User.email == email).first():
+                email = f"{base_email}{i}@school.local"; i += 1
+            new_user = models.User(email=email, full_name=f'Ученик {s.id}', hashed_password=get_password_hash('student123'), role='student')
+            db.add(new_user); db.flush()
+            s.user_id = new_user.id
+            created.append({'student_id': s.id, 'email': email})
+
+    # 2) для пользователей с ролью student без записи Student — создаём Student
+    student_users = db.query(models.User).filter(models.User.role == 'student').all()
+    for u in student_users:
+        st = db.query(models.Student).filter(models.Student.user_id == u.id).first()
+        if not st:
+            # привяжем к первому классу, если есть
+            cls = db.query(models.Class).first()
+            class_id = cls.id if cls else 1
+            new_student = models.Student(user_id=u.id, class_id=class_id)
+            db.add(new_student)
+            created.append({'created_student_for_user': u.email})
+
+    db.commit()
+    return {"created": created}
+
+# функция для обновления ученика (только завуч)
+@router.put("/{student_id}")
+def update_student(
+    student_id: int,
+    data: StudentUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role("admin"))
+):
+    # функция для поиска ученика с данными пользователя и класса
+    student = db.query(models.Student).options(
+        joinedload(models.Student.user),
+        joinedload(models.Student.class_group)
+    ).filter(models.Student.id == student_id).first()
+    
+    if not student:
+        raise HTTPException(status_code=404, detail="Ученик не найден")
+    
+    # функция для валидации уникальности email
+    if data.email and data.email != student.user.email:
+        existing = db.query(models.User).filter(
+            models.User.email == data.email,
+            models.User.id != student.user_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email уже используется")
+        student.user.email = data.email
+    
+    # функция для обновления ФИО
+    if data.full_name:
+        student.user.full_name = data.full_name
+    
+    # функция для обновления пароля (только если передан новый)
+    if data.password and data.password.strip():
+        student.user.hashed_password = get_password_hash(data.password)
+    
+    # функция для обновления класса
+    if data.class_id is not None:
+        student.class_id = data.class_id
+    
+    # функция для сохранения изменений в БД
+    try:
+        db.commit()
+        db.refresh(student)
+        db.refresh(student.user)
+        return {
+            "id": student.id,
+            "msg": "Ученик обновлён",
+            "email": student.user.email,
+            "full_name": student.user.full_name,
+            "class_name": student.class_group.name if student.class_group else None
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сохранения: {str(e)}")
+
+================================================================================
+FILE: C:\coursework1\backend\app\routers\subjects.py
+================================================================================
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from ..database import get_db
+from .. import models
+from ..dependencies import require_role
+from ..schemas import SubjectCreate
+
+router = APIRouter()
+
+# получить все предметы (только завуч)
+@router.get("/")
+async def get_subjects(db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
+    subjects = db.query(models.Subject).all()
+    return [
+        {
+            "id": subject.id,
+            "name": subject.name,
+            "description": subject.description
+        }
+        for subject in subjects
+    ]
+
+# создать предмет (только завуч)
+@router.post("/")
+async def create_subject(data: SubjectCreate, db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
+    new_subject = models.Subject(**data.dict())
+    db.add(new_subject)
+    db.commit()
+    db.refresh(new_subject)
+    return {
+        "id": new_subject.id,
+        "name": new_subject.name,
+        "description": new_subject.description
+    }
+
+# удалить предмет (только завуч)
+@router.delete("/{subject_id}")
+async def delete_subject(subject_id: int, db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
+    subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Предмет не найден")
+    db.delete(subject)
+    db.commit()
+    return {"message": "Предмет удален"}
+
+
+================================================================================
+FILE: C:\coursework1\backend\app\routers\teachers.py
+================================================================================
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session, joinedload
+from ..database import get_db
+from .. import models
+from ..dependencies import get_current_user, require_role
+from ..auth import get_password_hash
+from ..schemas import TeacherCreate, TeacherUpdate
+
+router = APIRouter()
+
+# функция для получения списка учителей (только завуч)
+@router.get("/")
+def get_teachers(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role("admin"))
+):
+    teachers = db.query(models.Teacher).options(
+        joinedload(models.Teacher.user),
+        joinedload(models.Teacher.subject)
+    ).all()
+    
+    result = []
+    for t in teachers:
+        result.append({
+            "id": t.id,
+            "user": {
+                "full_name": t.user.full_name if t.user else None,
+                "email": t.user.email if t.user else None
+            } if t.user else None,
+            "subject_id": t.subject_id,
+            "subject_name": t.subject.name if t.subject else None,
+            "room_number": t.room_number
+        })
+    return result
+
+# функция для получения профиля текущего учителя
+@router.get("/me")
+async def get_my_teacher_profile(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    user = await get_current_user(request)
+    if user["role"] != "teacher":
+        raise HTTPException(status_code=403, detail="Только для учителей")
+    teacher = db.query(models.Teacher).options(
+        joinedload(models.Teacher.user),
+        joinedload(models.Teacher.subject)
+    ).join(models.User).filter(
+        models.User.email == user["email"]
+    ).first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Профиль учителя не найден")
+    return {
+        "id": teacher.id,
+        "user": {
+            "full_name": teacher.user.full_name if teacher.user else None,
+            "email": teacher.user.email if teacher.user else None
+        } if teacher.user else None,
+        "subject_id": teacher.subject_id,
+        "subject_name": teacher.subject.name if teacher.subject else None,
+        "room_number": teacher.room_number
+    }
+
+# функция для создания учителя (только завуч)
+@router.post("/")
+def create_teacher(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    # проверяем уникальность email
+    email = data.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email обязателен")
+    existing = db.query(models.User).filter(models.User.email == email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email уже используется")
+    
+    user = models.User(
+        email=email,
+        full_name=data.get("full_name", "Новый учитель"),
+        hashed_password=get_password_hash(data.get("password", "teacher123")),
+        role="teacher"
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    teacher = models.Teacher(
+        user_id=user.id,
+        subject_id=data.get("subject_id", 1),
+        room_number=data.get("room_number")
+    )
+    db.add(teacher)
+    db.commit()
+    db.refresh(teacher)
+    
+    return {"id": teacher.id, "msg": "Учитель создан"}
+
+# функция для удаления учителя (только завуч)
+@router.delete("/{teacher_id}")
+def delete_teacher(teacher_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    teacher = db.query(models.Teacher).filter(models.Teacher.id == teacher_id).first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Учитель не найден")
+    
+    # удаляем связанные оценки
+    db.query(models.Grade).filter(models.Grade.teacher_id == teacher.id).delete()
+    # удаляем связанное расписание
+    db.query(models.Schedule).filter(models.Schedule.teacher_id == teacher.id).delete()
+    # удаляем учителя
+    db.delete(teacher)
+    db.commit()
+    
+    # удаляем пользователя
+    user = db.query(models.User).filter(models.User.id == teacher.user_id).first()
+    if user:
+        db.delete(user)
+        db.commit()
+
+    return {"msg": "Учитель удалён"}
+
+# функция для обновления учителя (только завуч)
+@router.put("/{teacher_id}")
+def update_teacher(
+    teacher_id: int,
+    data: TeacherUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role("admin"))
+):
+    # функция для поиска учителя с данными пользователя и предмета
+    teacher = db.query(models.Teacher).options(
+        joinedload(models.Teacher.user),
+        joinedload(models.Teacher.subject)
+    ).filter(models.Teacher.id == teacher_id).first()
+    
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Учитель не найден")
+    
+    # функция для валидации уникальности email
+    if data.email and data.email != teacher.user.email:
+        existing = db.query(models.User).filter(
+            models.User.email == data.email,
+            models.User.id != teacher.user_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email уже используется")
+        teacher.user.email = data.email
+    
+    # функция для обновления ФИО
+    if data.full_name:
+        teacher.user.full_name = data.full_name
+    
+    # функция для обновления пароля
+    if data.password and data.password.strip():
+        teacher.user.hashed_password = get_password_hash(data.password)
+    
+    # функция для обновления предмета
+    if data.subject_id is not None:
+        teacher.subject_id = data.subject_id
+    
+    # функция для обновления кабинета
+    if data.room_number is not None:
+        teacher.room_number = data.room_number
+    
+    # функция для сохранения изменений
+    try:
+        db.commit()
+        db.refresh(teacher)
+        db.refresh(teacher.user)
+        return {
+            "id": teacher.id,
+            "msg": "Учитель обновлён",
+            "email": teacher.user.email,
+            "full_name": teacher.user.full_name,
+            "subject_name": teacher.subject.name if teacher.subject else None
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сохранения: {str(e)}")
+
+================================================================================
+FILE: C:\coursework1\backend\app\routers\__init__.py
+================================================================================
+from . import students, teachers, classes, subjects, grades, schedule, analytics, notes
+
+================================================================================
+FILE: C:\coursework1\backend\templates\base.html
+================================================================================
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Электронный дневничок{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+    <link rel="stylesheet" href="/static/css/style.css">
+    
+    <!-- React и Babel должны быть ДО компонентов -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <!-- Этот div обязателен, и id должен совпадать с Login.jsx -->
+    <div id="root">{% block content %}{% endblock %}</div>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>
+
+================================================================================
+FILE: C:\coursework1\backend\templates\dashboard.html
+================================================================================
+{% extends "base.html" %}
+
+{% block title %}Электронный дневничок{% endblock %}
+
+{% block content %}
+<div id="dashboard-root"></div>
+{% endblock %}
+
+{% block scripts %}
+<!-- 1. Сначала ExportButton -->
+<script type="text/babel" src="/static/components/ExportButton.jsx"></script>
+
+<!-- 2. Потом все компоненты -->
+<script type="text/babel" src="/static/components/ClassList.jsx"></script>
+<script type="text/babel" src="/static/components/SubjectList.jsx"></script>
+<script type="text/babel" src="/static/components/StudentList.jsx"></script>
+<script type="text/babel" src="/static/components/TeacherList.jsx"></script>
+<script type="text/babel" src="/static/components/ScheduleList.jsx"></script>
+<script type="text/babel" src="/static/components/GradeBook.jsx"></script>
+<script type="text/babel" src="/static/components/Analytics.jsx"></script>
+<script type="text/babel" src="/static/components/StudentCabinet.jsx"></script>
+<script type="text/babel" src="/static/components/TeacherCabinet.jsx"></script>
+
+<!-- 3. В конце - Dashboard (использует все компоненты выше) -->
+<script type="text/babel" src="/static/components/Dashboard.jsx"></script>
+{% endblock %}
+
+================================================================================
+FILE: C:\coursework1\backend\templates\index.html
+================================================================================
+{% extends "base.html" %}
+
+{% block title %}Вход - Электронный дневничок{% endblock %}
+
+{% block content %}
+<div id="login-root"></div>
+{% endblock %}
+
+{% block scripts %}
+<script type="text/babel" src="/static/components/Login.jsx"></script>
+{% endblock %}
+

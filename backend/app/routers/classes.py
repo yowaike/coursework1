@@ -3,39 +3,82 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models
 from ..dependencies import require_role
-from ..schemas import ClassCreate
+from ..schemas import ClassCreate, ClassUpdate
 
 router = APIRouter()
 
-# получить все классы (только завуч)
-@router.get("/")
-async def get_classes(db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
-    classes = db.query(models.Class).all()
-    return [
-        {
-            "id": cls.id,
-            "name": cls.name,
-            "year": cls.year
-        }
-        for cls in classes
-    ]
 
-# создать класс (только завуч)
+def _class_to_dict(cls: models.Class) -> dict:
+    return {
+        "id": cls.id,
+        "name": cls.name,
+        "year": cls.year,
+        "max_students": cls.max_students,
+        "lessons_per_week": cls.lessons_per_week,
+    }
+
+
+@router.get("/")
+async def get_classes(
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role("admin")),
+):
+    classes = db.query(models.Class).all()
+    return [_class_to_dict(cls) for cls in classes]
+
+
 @router.post("/")
-async def create_class(data: ClassCreate, db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
+async def create_class(
+    data: ClassCreate,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role("admin")),
+):
     new_class = models.Class(**data.dict())
     db.add(new_class)
     db.commit()
     db.refresh(new_class)
-    return {
-        "id": new_class.id,
-        "name": new_class.name,
-        "year": new_class.year
-    }
+    return _class_to_dict(new_class)
 
-# удалить класс (только завуч)
+
+@router.put("/{class_id}")
+async def update_class(
+    class_id: int,
+    data: ClassUpdate,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role("admin")),
+):
+    cls = db.query(models.Class).filter(models.Class.id == class_id).first()
+    if not cls:
+        raise HTTPException(status_code=404, detail="Класс не найден")
+
+    if data.name is not None:
+        cls.name = data.name
+    if data.year is not None:
+        cls.year = data.year
+    if data.max_students is not None:
+        enrolled = db.query(models.Student).filter(
+            models.Student.class_id == class_id
+        ).count()
+        if data.max_students < enrolled:
+            raise HTTPException(
+                status_code=400,
+                detail=f"В классе уже {enrolled} учеников — лимит не может быть меньше",
+            )
+        cls.max_students = data.max_students
+    if data.lessons_per_week is not None:
+        cls.lessons_per_week = data.lessons_per_week
+
+    db.commit()
+    db.refresh(cls)
+    return _class_to_dict(cls)
+
+
 @router.delete("/{class_id}")
-async def delete_class(class_id: int, db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
+async def delete_class(
+    class_id: int,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role("admin")),
+):
     cls = db.query(models.Class).filter(models.Class.id == class_id).first()
     if not cls:
         raise HTTPException(status_code=404, detail="Класс не найден")

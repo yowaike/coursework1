@@ -37,14 +37,14 @@ def login(
 
     response = JSONResponse(content={"msg": "вход выполнен", "role": user.role})
     response.set_cookie(
-        key="access_token",
-        value=token,
-        httponly=True,
-        max_age=1800,
-        samesite="lax",
-        secure=False,
-        path="/"
-    )
+    key="access_token",
+    value=token,
+    httponly=True,
+    max_age=1800,
+    samesite="lax",  # ← замени на "None" если нужно
+    secure=False,    # ← оставь False для localhost
+    path="/"
+)
     return response
 
 # функция для получения текущего пользователя
