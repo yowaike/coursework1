@@ -12,6 +12,11 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False)
+    # Дополнительные профильные поля
+    school = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True)
+    academic_year = Column(String(50), nullable=True)
+    position = Column(String(100), nullable=True)
 
     teacher = relationship("Teacher", back_populates="user", uselist=False)
     student = relationship("Student", back_populates="user", uselist=False)

@@ -1,24 +1,40 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from ..database import get_db
 from .. import models
-from ..dependencies import get_current_user, require_role
-from ..schemas import GradeCreate
+from ..dependencies import get_current_user, require_role, require_roles
+from ..schemas import GradeCreate, GradeUpdate
 
 router = APIRouter()
 
-# функция для просмотра всех оценок (только завуч)
+# функция для просмотра оценок (завуч — все, учитель — только свои)
 @router.get("/")
 async def get_grades(
     student_id: int = Query(None),
-    request: Request = None,
+    class_id: int = Query(None),
     db: Session = Depends(get_db),
-    user: dict = Depends(require_role("admin"))
+    user: dict = Depends(require_roles(["admin", "teacher"]))
 ):
     query = db.query(models.Grade)
+
+    if user["role"] == "teacher":
+        teacher = db.query(models.Teacher).join(models.User).filter(
+            models.User.email == user["email"]
+        ).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Профиль учителя не найден")
+        query = query.filter(models.Grade.teacher_id == teacher.id)
+
     if student_id:
         query = query.filter(models.Grade.student_id == student_id)
-    grades = query.all()
+
+    if class_id:
+        query = query.join(models.Grade.student).filter(models.Student.class_id == class_id)
+    
+    grades = query.options(
+        joinedload(models.Grade.student).joinedload(models.Student.user),
+        joinedload(models.Grade.subject)
+    ).all()
     return [
         {
             "id": grade.id,
@@ -39,10 +55,11 @@ async def get_grades(
 
 # функция для получения оценок текущего ученика
 @router.get("/my")
-async def get_my_grades(request: Request, db: Session = Depends(get_db)):
-    user = await get_current_user(request)
-    if user["role"] != "student":
-        raise HTTPException(status_code=403, detail="Только для учеников")
+async def get_my_grades(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_role("student"))
+):
     student = db.query(models.Student).join(models.User).filter(
         models.User.email == user["email"]
     ).first()
@@ -65,15 +82,43 @@ async def get_my_grades(request: Request, db: Session = Depends(get_db)):
         for grade in grades
     ]
 
-# функция для выставления оценки (только завуч)
+# функция для выставления оценки (завуч и учитель)
 @router.post("/")
 async def add_grade(
     data: GradeCreate,
     request: Request,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_role("admin"))
+    user: dict = Depends(require_roles(["admin", "teacher"]))
 ):
-    new_grade = models.Grade(**data.dict())
+    grade_data = data.dict()
+    student = db.query(models.Student).filter(models.Student.id == grade_data["student_id"]).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Ученик не найден")
+
+    if user["role"] == "teacher":
+        teacher = db.query(models.Teacher).join(models.User).filter(
+            models.User.email == user["email"]
+        ).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Профиль учителя не найден")
+        grade_data["teacher_id"] = teacher.id
+        grade_data["subject_id"] = teacher.subject_id
+    else:
+        if not grade_data.get("subject_id"):
+            raise HTTPException(status_code=400, detail="Предмет обязателен")
+        if not grade_data.get("teacher_id"):
+            raise HTTPException(status_code=400, detail="Учитель обязателен")
+        teacher = db.query(models.Teacher).filter(models.Teacher.id == grade_data["teacher_id"]).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Учитель не найден")
+        if teacher.subject_id != grade_data["subject_id"]:
+            raise HTTPException(status_code=400, detail="Учитель не ведёт выбранный предмет")
+
+    subject = db.query(models.Subject).filter(models.Subject.id == grade_data["subject_id"]).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Предмет не найден")
+
+    new_grade = models.Grade(**grade_data)
     db.add(new_grade)
     db.commit()
     db.refresh(new_grade)
@@ -88,3 +133,79 @@ async def add_grade(
         "quarter": new_grade.quarter,
         "date": str(new_grade.date)
     }
+
+
+@router.put("/{grade_id}")
+async def update_grade(
+    grade_id: int,
+    data: GradeUpdate,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_roles(["admin", "teacher"]))
+):
+    grade = db.query(models.Grade).filter(models.Grade.id == grade_id).first()
+    if not grade:
+        raise HTTPException(status_code=404, detail="Оценка не найдена")
+
+    if user["role"] == "teacher":
+        teacher = db.query(models.Teacher).join(models.User).filter(
+            models.User.email == user["email"]
+        ).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Профиль учителя не найден")
+        if grade.teacher_id != teacher.id:
+            raise HTTPException(status_code=403, detail="Нет доступа к этой оценке")
+
+    if data.subject_id is not None:
+        subject = db.query(models.Subject).filter(models.Subject.id == data.subject_id).first()
+        if not subject:
+            raise HTTPException(status_code=404, detail="Предмет не найден")
+        grade.subject_id = data.subject_id
+
+    if data.teacher_id is not None:
+        teacher = db.query(models.Teacher).filter(models.Teacher.id == data.teacher_id).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Учитель не найден")
+        if data.subject_id is not None and teacher.subject_id != data.subject_id:
+            raise HTTPException(status_code=400, detail="Учитель не ведёт выбранный предмет")
+        grade.teacher_id = data.teacher_id
+        if data.subject_id is None:
+            grade.subject_id = teacher.subject_id
+
+    if data.grade_type is not None:
+        grade.grade_type = data.grade_type
+    if data.grade_value is not None:
+        grade.grade_value = data.grade_value
+    if data.work_type is not None:
+        grade.work_type = data.work_type
+    if data.quarter is not None:
+        grade.quarter = data.quarter
+    if data.date is not None:
+        grade.date = data.date
+
+    db.commit()
+    db.refresh(grade)
+    return {"msg": "Оценка обновлена", "id": grade.id}
+
+
+@router.delete("/{grade_id}")
+async def delete_grade(
+    grade_id: int,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_roles(["admin", "teacher"]))
+):
+    grade = db.query(models.Grade).filter(models.Grade.id == grade_id).first()
+    if not grade:
+        raise HTTPException(status_code=404, detail="Оценка не найдена")
+
+    if user["role"] == "teacher":
+        teacher = db.query(models.Teacher).join(models.User).filter(
+            models.User.email == user["email"]
+        ).first()
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Профиль учителя не найден")
+        if grade.teacher_id != teacher.id:
+            raise HTTPException(status_code=403, detail="Нет доступа к этой оценке")
+
+    db.delete(grade)
+    db.commit()
+    return {"msg": "Оценка удалена"}

@@ -1,12 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}Дашборд - Электронный дневничок{% endblock %}
+{% block title %}Электронный дневничок{% endblock %}
 
 {% block content %}
 <div id="dashboard-root"></div>
 {% endblock %}
 
 {% block scripts %}
+<!-- Сначала зависимости -->
+<script type="text/babel" src="/static/components/ExportButton.jsx"></script>
+
+<!-- Потом компоненты -->
+<script type="text/babel" src="/static/components/ClassList.jsx"></script>
+<script type="text/babel" src="/static/components/SubjectList.jsx"></script>
 <script type="text/babel" src="/static/components/StudentList.jsx"></script>
 <script type="text/babel" src="/static/components/TeacherList.jsx"></script>
 <script type="text/babel" src="/static/components/ScheduleList.jsx"></script>
@@ -14,8 +20,7 @@
 <script type="text/babel" src="/static/components/Analytics.jsx"></script>
 <script type="text/babel" src="/static/components/StudentCabinet.jsx"></script>
 <script type="text/babel" src="/static/components/TeacherCabinet.jsx"></script>
-<script type="text/babel" src="/static/components/ClassList.jsx"></script>
-<script type="text/babel" src="/static/components/SubjectList.jsx"></script>
-<script type="text/babel" src="/static/components/ExportButton.jsx"></script>
+
+<!-- В конце - Dashboard -->
 <script type="text/babel" src="/static/components/Dashboard.jsx"></script>
 {% endblock %}

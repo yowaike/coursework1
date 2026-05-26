@@ -29,6 +29,12 @@ class StudentBase(BaseModel):
 class StudentCreate(StudentBase):
     pass
 
+class StudentUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    class_id: Optional[int] = None
+    password: Optional[str] = None
+
 class StudentOut(BaseModel):
     id: int
     class_id: int
@@ -44,6 +50,13 @@ class TeacherBase(BaseModel):
 
 class TeacherCreate(TeacherBase):
     pass
+
+class TeacherUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    subject_id: Optional[int] = None
+    room_number: Optional[str] = None
+    password: Optional[str] = None
 
 class TeacherOut(BaseModel):
     id: int
@@ -77,10 +90,19 @@ class NoteCreate(BaseModel):
 
 class GradeCreate(BaseModel):
     student_id: int
-    subject_id: int
-    teacher_id: int
+    subject_id: Optional[int] = None  # опционально — для учителя подставится автоматически
+    teacher_id: Optional[int] = None  # опционально — для учителя подставится автоматически
     grade_type: str
     grade_value: int
     work_type: str
     quarter: int
     date: date
+
+class GradeUpdate(BaseModel):
+    subject_id: Optional[int] = None
+    teacher_id: Optional[int] = None
+    grade_type: Optional[str] = None
+    grade_value: Optional[int] = None
+    work_type: Optional[str] = None
+    quarter: Optional[int] = None
+    date: Optional[date] = None

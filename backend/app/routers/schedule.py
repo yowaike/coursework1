@@ -1,62 +1,63 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session, joinedload
 from ..database import get_db
 from .. import models
-from ..dependencies import require_role
+from ..dependencies import get_current_user, require_role
 from ..schemas import ScheduleCreate
 
 router = APIRouter()
 
-# получить расписание (только завуч, может фильтровать по teacher_id)
+# функция для получения расписания (доступно всем авторизованным)
 @router.get("/")
-async def get_schedule(
-    teacher_id: int = Query(None),
+def get_schedule(
+    class_id: int = None,
+    teacher_id: int = None,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_role("admin"))
+    current_user: dict = Depends(get_current_user)
 ):
-    query = db.query(models.Schedule)
-    if teacher_id:
+    query = db.query(models.Schedule).options(
+        joinedload(models.Schedule.class_group),
+        joinedload(models.Schedule.subject),
+        joinedload(models.Schedule.teacher).joinedload(models.Teacher.user)
+    )
+    if class_id is not None:
+        query = query.filter(models.Schedule.class_id == class_id)
+    if teacher_id is not None:
         query = query.filter(models.Schedule.teacher_id == teacher_id)
+
     schedule = query.all()
-    return [
-        {
-            "id": sched.id,
-            "class_id": sched.class_id,
-            "class_name": sched.class_.name if sched.class_ else None,
-            "subject_id": sched.subject_id,
-            "subject_name": sched.subject.name if sched.subject else None,
-            "teacher_id": sched.teacher_id,
-            "teacher_name": sched.teacher.user.full_name if sched.teacher and sched.teacher.user else None,
-            "day_of_week": sched.day_of_week,
-            "start_time": sched.start_time,
-            "room": sched.room
-        }
-        for sched in schedule
-    ]
+    
+    result = []
+    for s in schedule:
+        result.append({
+            "id": s.id,
+            "day_of_week": s.day_of_week,
+            "start_time": s.start_time,
+            "class_id": s.class_id,
+            "class_name": s.class_group.name if s.class_group else None,
+            "subject_id": s.subject_id,
+            "subject_name": s.subject.name if s.subject else None,
+            "teacher_id": s.teacher_id,
+            "teacher_name": s.teacher.user.full_name if s.teacher and s.teacher.user else None,
+            "room": s.room
+        })
+    return result
 
-# создать расписание (только завуч)
-@router.post("/")
-async def create_schedule(data: ScheduleCreate, db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
-    new_schedule = models.Schedule(**data.dict())
-    db.add(new_schedule)
+# функция для добавления урока в расписание (только завуч)
+@router.post("/", dependencies=[Depends(require_role("admin"))])
+def create_schedule_item(data: ScheduleCreate, db: Session = Depends(get_db)):
+    new_item = models.Schedule(**data.dict())
+    db.add(new_item)
     db.commit()
-    db.refresh(new_schedule)
-    return {
-        "id": new_schedule.id,
-        "class_id": new_schedule.class_id,
-        "subject_id": new_schedule.subject_id,
-        "teacher_id": new_schedule.teacher_id,
-        "day_of_week": new_schedule.day_of_week,
-        "start_time": new_schedule.start_time,
-        "room": new_schedule.room
-    }
+    db.refresh(new_item)
+    return {"id": new_item.id, "msg": "Запись добавлена"}
 
-# удалить расписание (только завуч)
-@router.delete("/{schedule_id}")
-async def delete_schedule(schedule_id: int, db: Session = Depends(get_db), user: dict = Depends(require_role("admin"))):
-    schedule = db.query(models.Schedule).filter(models.Schedule.id == schedule_id).first()
-    if not schedule:
-        raise HTTPException(status_code=404, detail="Расписание не найдено")
-    db.delete(schedule)
+# функция для удаления урока из расписания (только завуч)
+@router.delete("/{item_id}", dependencies=[Depends(require_role("admin"))])
+def delete_schedule_item(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(models.Schedule).filter(models.Schedule.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+    db.delete(item)
     db.commit()
-    return {"message": "Расписание удалено"}
+    return {"msg": "Запись удалена"}
