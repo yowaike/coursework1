@@ -83,6 +83,10 @@ class SubjectCreate(BaseModel):
     name: str
     description: Optional[str] = None
 
+class SubjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
 class ScheduleCreate(BaseModel):
     class_id: int
     subject_id: int

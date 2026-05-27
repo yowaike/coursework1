@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from .database import Base
 from datetime import datetime
@@ -79,6 +79,7 @@ class Grade(Base):
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
     subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=True)
     grade_type = Column(String(20), nullable=False)
     grade_value = Column(Integer, nullable=False)
     work_type = Column(String(50))
@@ -89,6 +90,7 @@ class Grade(Base):
     student = relationship("Student", back_populates="grades")
     subject = relationship("Subject", back_populates="grades")
     teacher = relationship("Teacher", back_populates="grades")
+    academic_year = relationship("AcademicYear", back_populates="grades")
 
 class Schedule(Base):
     __tablename__ = "schedule"
@@ -96,6 +98,7 @@ class Schedule(Base):
     class_id = Column(Integer, ForeignKey("classes.id"), nullable=False)
     subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=True)
     day_of_week = Column(Integer, nullable=False)
     start_time = Column(String(5), nullable=False)
     room = Column(String(10))
@@ -103,6 +106,7 @@ class Schedule(Base):
     class_group = relationship("Class", back_populates="schedule_items")
     subject = relationship("Subject", back_populates="schedule_items")
     teacher = relationship("Teacher", back_populates="schedule_items")
+    academic_year = relationship("AcademicYear", back_populates="schedule_items")
 
 class Note(Base):
     __tablename__ = "notes"
@@ -125,3 +129,83 @@ class Event(Base):
     time = Column(String(5))
 
     subject = relationship("Subject", back_populates="events")
+
+
+class AcademicYear(Base):
+    __tablename__ = "academic_years"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), nullable=False, unique=True)
+    is_active = Column(Boolean, nullable=False, default=False)
+
+    terms = relationship("Term", back_populates="academic_year")
+    grades = relationship("Grade", back_populates="academic_year")
+    schedule_items = relationship("Schedule", back_populates="academic_year")
+    final_grades = relationship("FinalGrade", back_populates="academic_year")
+
+
+class Term(Base):
+    __tablename__ = "terms"
+    id = Column(Integer, primary_key=True, index=True)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    term_no = Column(Integer, nullable=False)  # 1..4
+    name = Column(String(50), nullable=False)
+
+    academic_year = relationship("AcademicYear", back_populates="terms")
+
+
+class TeacherAssignment(Base):
+    __tablename__ = "teacher_assignments"
+    id = Column(Integer, primary_key=True, index=True)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    class_id = Column(Integer, ForeignKey("classes.id"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=True)
+
+    teacher = relationship("Teacher")
+    class_group = relationship("Class")
+    subject = relationship("Subject")
+    academic_year = relationship("AcademicYear")
+
+
+class FinalGrade(Base):
+    __tablename__ = "final_grades"
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    value = Column(Integer, nullable=False)
+    is_override = Column(Boolean, nullable=False, default=False)
+    override_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    calculated_from_term_avg = Column(Integer, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    student = relationship("Student")
+    subject = relationship("Subject")
+    academic_year = relationship("AcademicYear", back_populates="final_grades")
+    override_by_user = relationship("User")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    actor_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    action = Column(String(50), nullable=False)
+    entity_type = Column(String(50), nullable=False)
+    entity_id = Column(Integer, nullable=False)
+    before_json = Column(Text, nullable=True)
+    after_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    actor = relationship("User")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    type = Column(String(50), nullable=False)
+    payload_json = Column(Text, nullable=True)
+    is_read = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")

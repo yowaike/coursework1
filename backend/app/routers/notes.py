@@ -19,13 +19,23 @@ def _get_teacher(db: Session, email: str) -> models.Teacher | None:
 
 
 def _teacher_student_ids(db: Session, teacher_id: int) -> set[int]:
+    # primary: assignments (нагрузка)
     class_ids = {
         row[0]
-        for row in db.query(models.Schedule.class_id)
-        .filter(models.Schedule.teacher_id == teacher_id)
+        for row in db.query(models.TeacherAssignment.class_id)
+        .filter(models.TeacherAssignment.teacher_id == teacher_id)
         .distinct()
         .all()
     }
+    # fallback: расписание
+    if not class_ids:
+        class_ids = {
+            row[0]
+            for row in db.query(models.Schedule.class_id)
+            .filter(models.Schedule.teacher_id == teacher_id)
+            .distinct()
+            .all()
+        }
     if not class_ids:
         return set()
     rows = db.query(models.Student.id).filter(

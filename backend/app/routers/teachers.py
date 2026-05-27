@@ -5,6 +5,7 @@ from .. import models
 from ..dependencies import get_current_user, require_role
 from ..auth import get_password_hash
 from ..schemas import TeacherCreate, TeacherUpdate
+from ..audit import log_audit
 
 router = APIRouter()
 
@@ -90,6 +91,8 @@ def create_teacher(data: dict, db: Session = Depends(get_db), current_user: dict
     db.add(teacher)
     db.commit()
     db.refresh(teacher)
+    log_audit(db, actor_user_id=db.query(models.User).filter(models.User.email == current_user["email"]).first().id, action="create", entity_type="teacher", entity_id=teacher.id, before=None, after={"teacher_id": teacher.id, "user_id": user.id, "subject_id": teacher.subject_id})
+    db.commit()
     
     return {"id": teacher.id, "msg": "Учитель создан"}
 
@@ -99,6 +102,8 @@ def delete_teacher(teacher_id: int, db: Session = Depends(get_db), current_user:
     teacher = db.query(models.Teacher).filter(models.Teacher.id == teacher_id).first()
     if not teacher:
         raise HTTPException(status_code=404, detail="Учитель не найден")
+    actor = db.query(models.User).filter(models.User.email == current_user["email"]).first()
+    before = {"teacher_id": teacher.id, "user_id": teacher.user_id, "subject_id": teacher.subject_id}
     
     # удаляем связанные оценки
     db.query(models.Grade).filter(models.Grade.teacher_id == teacher.id).delete()
@@ -112,6 +117,10 @@ def delete_teacher(teacher_id: int, db: Session = Depends(get_db), current_user:
     user = db.query(models.User).filter(models.User.id == teacher.user_id).first()
     if user:
         db.delete(user)
+        db.commit()
+
+    if actor:
+        log_audit(db, actor_user_id=actor.id, action="delete", entity_type="teacher", entity_id=teacher_id, before=before, after=None)
         db.commit()
 
     return {"msg": "Учитель удалён"}
@@ -133,6 +142,16 @@ def update_teacher(
     if not teacher:
         raise HTTPException(status_code=404, detail="Учитель не найден")
     
+    actor = db.query(models.User).filter(models.User.email == current_user["email"]).first()
+    before = {
+        "teacher_id": teacher.id,
+        "user_id": teacher.user_id,
+        "full_name": teacher.user.full_name if teacher.user else None,
+        "email": teacher.user.email if teacher.user else None,
+        "subject_id": teacher.subject_id,
+        "room_number": teacher.room_number,
+    }
+
     # функция для валидации уникальности email
     if data.email and data.email != teacher.user.email:
         existing = db.query(models.User).filter(
@@ -164,6 +183,17 @@ def update_teacher(
         db.commit()
         db.refresh(teacher)
         db.refresh(teacher.user)
+        if actor:
+            after = {
+                "teacher_id": teacher.id,
+                "user_id": teacher.user_id,
+                "full_name": teacher.user.full_name if teacher.user else None,
+                "email": teacher.user.email if teacher.user else None,
+                "subject_id": teacher.subject_id,
+                "room_number": teacher.room_number,
+            }
+            log_audit(db, actor_user_id=actor.id, action="update", entity_type="teacher", entity_id=teacher.id, before=before, after=after)
+            db.commit()
         return {
             "id": teacher.id,
             "msg": "Учитель обновлён",

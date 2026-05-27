@@ -5,6 +5,7 @@ from .. import models
 from ..dependencies import get_current_user, require_role
 from ..auth import get_password_hash
 from ..schemas import StudentUpdate
+from ..audit import log_audit
 
 router = APIRouter()
 
@@ -62,7 +63,9 @@ async def get_my_students(
         teacher = db.query(models.Teacher).join(models.User).filter(models.User.email == user["email"]).first()
         if not teacher:
             raise HTTPException(status_code=404, detail="Профиль учителя не найден")
-        class_ids = [item.class_id for item in db.query(models.Schedule).filter(models.Schedule.teacher_id == teacher.id).all()]
+        class_ids = [r[0] for r in db.query(models.TeacherAssignment.class_id).filter(models.TeacherAssignment.teacher_id == teacher.id).distinct().all()]
+        if not class_ids:
+            class_ids = [item.class_id for item in db.query(models.Schedule).filter(models.Schedule.teacher_id == teacher.id).all()]
         if not class_ids:
             return []
         students = db.query(models.Student).options(
@@ -144,6 +147,10 @@ def create_student(data: dict, db: Session = Depends(get_db), current_user: dict
         db.add(student)
         db.commit()
         db.refresh(student)
+        actor = db.query(models.User).filter(models.User.email == current_user["email"]).first()
+        if actor:
+            log_audit(db, actor_user_id=actor.id, action="create", entity_type="student", entity_id=student.id, before=None, after={"student_id": student.id, "user_id": user.id, "class_id": student.class_id})
+            db.commit()
         return {"id": student.id, "msg": "Ученик создан"}
     except Exception as e:
         db.rollback()
@@ -155,6 +162,8 @@ def delete_student(student_id: int, db: Session = Depends(get_db), current_user:
     student = db.query(models.Student).filter(models.Student.id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Ученик не найден")
+    actor = db.query(models.User).filter(models.User.email == current_user["email"]).first()
+    before = {"student_id": student.id, "user_id": student.user_id, "class_id": student.class_id}
     
     try:
         # удаляем связанные оценки и заметки
@@ -171,6 +180,9 @@ def delete_student(student_id: int, db: Session = Depends(get_db), current_user:
             db.delete(user)
 
         db.commit()
+        if actor:
+            log_audit(db, actor_user_id=actor.id, action="delete", entity_type="student", entity_id=student_id, before=before, after=None)
+            db.commit()
         return {"msg": "Ученик удалён"}
     except Exception as e:
         db.rollback()
@@ -229,6 +241,15 @@ def update_student(
     
     if not student:
         raise HTTPException(status_code=404, detail="Ученик не найден")
+
+    actor = db.query(models.User).filter(models.User.email == current_user["email"]).first()
+    before = {
+        "student_id": student.id,
+        "user_id": student.user_id,
+        "full_name": student.user.full_name if student.user else None,
+        "email": student.user.email if student.user else None,
+        "class_id": student.class_id,
+    }
     
     # функция для валидации уникальности email
     if data.email and data.email != student.user.email:
@@ -258,6 +279,16 @@ def update_student(
         db.commit()
         db.refresh(student)
         db.refresh(student.user)
+        if actor:
+            after = {
+                "student_id": student.id,
+                "user_id": student.user_id,
+                "full_name": student.user.full_name if student.user else None,
+                "email": student.user.email if student.user else None,
+                "class_id": student.class_id,
+            }
+            log_audit(db, actor_user_id=actor.id, action="update", entity_type="student", entity_id=student.id, before=before, after=after)
+            db.commit()
         return {
             "id": student.id,
             "msg": "Ученик обновлён",

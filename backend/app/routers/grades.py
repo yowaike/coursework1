@@ -4,6 +4,8 @@ from ..database import get_db
 from .. import models
 from ..dependencies import get_current_user, require_role, require_roles
 from ..schemas import GradeCreate, GradeUpdate
+from .final_grades import recalculate_final_grade
+from ..notifications import create_notification
 
 router = APIRouter()
 
@@ -15,10 +17,18 @@ def _get_teacher(db: Session, email: str):
 
 
 def _teacher_class_ids(db: Session, teacher_id: int) -> set[int]:
-    rows = db.query(models.Schedule.class_id).filter(
+    # primary: assignments (нагрузка)
+    rows = db.query(models.TeacherAssignment.class_id).filter(
+        models.TeacherAssignment.teacher_id == teacher_id
+    ).distinct().all()
+    class_ids = {r[0] for r in rows}
+    if class_ids:
+        return class_ids
+    # fallback: расписание
+    rows2 = db.query(models.Schedule.class_id).filter(
         models.Schedule.teacher_id == teacher_id
     ).distinct().all()
-    return {r[0] for r in rows}
+    return {r[0] for r in rows2}
 
 
 def _teacher_teaches_student(db: Session, teacher_id: int, student_id: int) -> bool:
@@ -83,7 +93,16 @@ async def get_grades(
         teacher = _get_teacher(db, user["email"])
         if not teacher:
             raise HTTPException(status_code=404, detail="Профиль учителя не найден")
-        query = query.filter(models.Grade.teacher_id == teacher.id)
+        # учитель видит только свои ТЕКУЩИЕ оценки
+        query = query.filter(
+            models.Grade.teacher_id == teacher.id,
+            models.Grade.grade_type == models.GRADE_TYPE_CURRENT,
+        )
+        # если пришли фильтры — дополнительно валидируем принадлежность
+        if student_id is not None and not _teacher_teaches_student(db, teacher.id, student_id):
+            raise HTTPException(status_code=403, detail="Ученик не из ваших классов")
+        if class_id is not None and class_id not in _teacher_class_ids(db, teacher.id):
+            raise HTTPException(status_code=403, detail="Класс не из ваших")
 
     if student_id:
         query = query.filter(models.Grade.student_id == student_id)
@@ -171,6 +190,9 @@ async def add_grade(
             raise HTTPException(status_code=404, detail="Учитель не найден")
         if teacher.subject_id != grade_data["subject_id"]:
             raise HTTPException(status_code=400, detail="Учитель не ведёт выбранный предмет")
+        # admin выставляет четвертную оценку только если учитель реально ведёт класс ученика
+        if not _teacher_teaches_student(db, teacher.id, student.id):
+            raise HTTPException(status_code=400, detail="Учитель не ведёт класс этого ученика")
 
     subject = db.query(models.Subject).filter(
         models.Subject.id == grade_data["subject_id"]
@@ -182,6 +204,32 @@ async def add_grade(
     db.add(new_grade)
     db.commit()
     db.refresh(new_grade)
+
+    # уведомления ученику
+    try:
+        st = db.query(models.Student).filter(models.Student.id == new_grade.student_id).first()
+        if st:
+            create_notification(
+                db,
+                user_id=st.user_id,
+                type_=("grade_quarter_set" if new_grade.grade_type == models.GRADE_TYPE_QUARTER else "grade_current_set"),
+                payload={
+                    "grade_id": new_grade.id,
+                    "subject_id": new_grade.subject_id,
+                    "grade_value": new_grade.grade_value,
+                    "work_type": new_grade.work_type,
+                    "quarter": new_grade.quarter,
+                    "date": str(new_grade.date),
+                },
+            )
+            db.commit()
+    except Exception:
+        db.rollback()
+
+    if user["role"] == "admin" and new_grade.grade_type == models.GRADE_TYPE_QUARTER:
+        # пересчитать годовую (если override — обновится только calculated_from_term_avg)
+        if new_grade.academic_year_id:
+            recalculate_final_grade(db, new_grade.student_id, new_grade.subject_id, new_grade.academic_year_id)
     return _grade_to_dict(new_grade)
 
 
@@ -242,6 +290,9 @@ async def update_grade(
         subject_id = data.subject_id if data.subject_id is not None else grade.subject_id
         if teacher.subject_id != subject_id:
             raise HTTPException(status_code=400, detail="Учитель не ведёт выбранный предмет")
+        # при перепривязке оценки гарантируем, что учитель ведёт класс ученика
+        if not _teacher_teaches_student(db, teacher.id, grade.student_id):
+            raise HTTPException(status_code=400, detail="Учитель не ведёт класс этого ученика")
         grade.teacher_id = data.teacher_id
         if data.subject_id is None:
             grade.subject_id = teacher.subject_id
@@ -259,6 +310,31 @@ async def update_grade(
 
     db.commit()
     db.refresh(grade)
+
+    # уведомление ученику об изменении
+    try:
+        st = db.query(models.Student).filter(models.Student.id == grade.student_id).first()
+        if st:
+            create_notification(
+                db,
+                user_id=st.user_id,
+                type_=("grade_quarter_updated" if grade.grade_type == models.GRADE_TYPE_QUARTER else "grade_current_updated"),
+                payload={
+                    "grade_id": grade.id,
+                    "subject_id": grade.subject_id,
+                    "grade_value": grade.grade_value,
+                    "work_type": grade.work_type,
+                    "quarter": grade.quarter,
+                    "date": str(grade.date),
+                },
+            )
+            db.commit()
+    except Exception:
+        db.rollback()
+
+    if user["role"] == "admin" and grade.grade_type == models.GRADE_TYPE_QUARTER:
+        if grade.academic_year_id:
+            recalculate_final_grade(db, grade.student_id, grade.subject_id, grade.academic_year_id)
     return {"msg": "Оценка обновлена", "id": grade.id}
 
 
