@@ -1,134 +1,106 @@
-// компонент списка учеников с поиском, добавлением и удалением
-const StudentList = () => {
-    const [students, setStudents] = React.useState([])
-    const [searchTerm, setSearchTerm] = React.useState('')
+// компонент справочника предметов
+const SubjectList = () => {
+    const [subjects, setSubjects] = React.useState([])
     const [showForm, setShowForm] = React.useState(false)
+    const [formData, setFormData] = React.useState({ name: '', description: '' })
     const [loading, setLoading] = React.useState(true)
     const [error, setError] = React.useState('')
-    const [formData, setFormData] = React.useState({ 
-        full_name: '', 
-        class_id: 1,
-        email: '', 
-        password: 'student123'
-    })
+    const [confirmModal, setConfirmModal] = React.useState({ isOpen: false, id: null, name: '' })
 
     React.useEffect(() => {
-        fetch('/api/students')
-            .then(res => {
-                if (!res.ok) throw new Error('Ошибка загрузки данных')
-                return res.json()
-            })
-            .then(data => {
-                setStudents(data)
-                setLoading(false)
-            })
-            .catch(err => {
-                setError(err.message)
-                setLoading(false)
-            })
+        fetch('/api/subjects', { credentials: 'include' })
+            .then(res => res.json())
+            .then(data => { setSubjects(data); setLoading(false) })
+            .catch(err => { setError(err.message); setLoading(false) })
     }, [])
 
     const handleAdd = async (e) => {
         e.preventDefault()
         setError('')
-        if (!formData.full_name || !formData.email) {
-            setError('Обязательно заполните ФИО и Email')
-            return
-        }
+        if (!formData.name) { setError('Введите название предмета'); return }
         try {
-            const res = await fetch('/api/students', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+            const res = await fetch('/api/subjects', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                credentials: 'include', body: JSON.stringify(formData)
             })
             if (!res.ok) throw new Error('Не удалось сохранить')
-            setShowForm(false)
-            window.location.reload()
-        } catch (err) {
-            setError(err.message)
-        }
+            setShowForm(false); setFormData({ name: '', description: '' })
+            const updated = await fetch('/api/subjects', { credentials: 'include' }).then(r => r.json())
+            setSubjects(updated)
+        } catch (err) { setError(err.message) }
+    }
+
+    const confirmDelete = async () => {
+        try {
+            const res = await fetch(`/api/subjects/${confirmModal.id}`, { method: 'DELETE', credentials: 'include' })
+            if (!res.ok) throw new Error('Не удалось удалить')
+            setConfirmModal({ isOpen: false, id: null, name: '' })
+            const updated = await fetch('/api/subjects', { credentials: 'include' }).then(r => r.json())
+            setSubjects(updated)
+        } catch (err) { setError(err.message); setConfirmModal({ isOpen: false, id: null, name: '' }) }
     }
 
     if (loading) return React.createElement('div', { className: 'spinner' })
 
-    // Логика фильтрации (поиск по ФИО)
-    const filteredStudents = students.filter(st => 
-        st.user && st.user.full_name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-
-    return React.createElement('div', { className: 'glass-card' },
-        // Верхняя панель: Поиск и кнопка добавления
-        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' } },
-            React.createElement('input', {
-                className: 'input',
-                placeholder: 'Поиск по ФИО...',
-                value: searchTerm,
-                onChange: (e) => setSearchTerm(e.target.value),
-                style: { width: '100%', maxWidth: '300px', marginBottom: 0 }
-            }),
-            React.createElement('button', { 
-                className: 'btn', 
-                onClick: () => { setShowForm(!showForm); setError('') } 
-            }, showForm ? 'Отмена' : 'Добавить ученика')
-        ),
-        
-        error && React.createElement('div', { className: 'error-msg' }, error),
-        
-        showForm && React.createElement('form', { 
-            onSubmit: handleAdd, 
-            style: { background: 'var(--bg-main)', padding: '20px', borderRadius: '12px', marginBottom: '20px', border: '1px solid var(--border-color)' } 
-        },
-            React.createElement('input', { 
-                className: 'input', 
-                placeholder: 'ФИО ученика', 
-                value: formData.full_name,
-                onChange: (e) => setFormData({...formData, full_name: e.target.value})
-            }),
-            React.createElement('input', { 
-                className: 'input', 
-                type: 'email', 
-                placeholder: 'Email (логин)', 
-                value: formData.email,
-                onChange: (e) => setFormData({...formData, email: e.target.value})
-            }),
-            React.createElement('input', { 
-                className: 'input', 
-                type: 'number', 
-                placeholder: 'ID класса', 
-                value: formData.class_id,
-                onChange: (e) => setFormData({...formData, class_id: Number(e.target.value)})
-            }),
-            React.createElement('button', { className: 'btn', type: 'submit' }, 'Сохранить')
-        ),
-
-        React.createElement('table', null,
-            React.createElement('thead', null,
-                React.createElement('tr', null,
-                    React.createElement('th', null, 'ФИО'),
-                    React.createElement('th', null, 'Email'),
-                    React.createElement('th', null, 'Класс'),
-                    React.createElement('th', { style: { textAlign: 'right' } }, 'Действия')
-                )
+    return React.createElement('div', null,
+        React.createElement('div', { className: 'page-header' },
+            React.createElement('div', null,
+                React.createElement('h1', { className: 'page-title' }, 'Предметы'),
+                React.createElement('p', { className: 'page-subtitle' }, `${subjects.length} в учебном плане`)
             ),
-            React.createElement('tbody', null,
-                filteredStudents.map(st => 
-                    React.createElement('tr', { key: st.id },
-                        React.createElement('td', { style: { fontWeight: 500 } }, st.user ? st.user.full_name : '—'),
-                        React.createElement('td', { style: { color: 'var(--text-secondary)' } }, st.user ? st.user.email : '—'),
-                        React.createElement('td', null, st.class_id),
-                        React.createElement('td', { style: { textAlign: 'right' } },
+            React.createElement('button', {
+                className: 'btn btn--compact',
+                onClick: () => { setShowForm(!showForm); setError('') }
+            }, showForm ? 'Отмена' : 'Добавить предмет')
+        ),
+
+        error && React.createElement('div', { className: 'error-msg' }, error),
+
+        showForm && React.createElement('div', { className: 'glass-card', style: { marginBottom: '24px' } },
+            React.createElement('h3', { className: 'panel-title' }, 'Новый предмет'),
+            React.createElement('form', { onSubmit: handleAdd },
+                React.createElement('label', { className: 'form-label' }, 'Название'),
+                React.createElement('input', { className: 'input', placeholder: 'Математика', value: formData.name, onChange: (e) => setFormData({ ...formData, name: e.target.value }) }),
+                React.createElement('label', { className: 'form-label' }, 'Описание'),
+                React.createElement('textarea', { className: 'input', placeholder: 'Краткое описание...', value: formData.description, onChange: (e) => setFormData({ ...formData, description: e.target.value }), rows: 2, style: { marginBottom: 0 } }),
+                React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' } },
+                    React.createElement('button', { className: 'btn btn--ghost', type: 'button', onClick: () => setShowForm(false) }, 'Отмена'),
+                    React.createElement('button', { className: 'btn btn--compact', type: 'submit' }, 'Сохранить')
+                )
+            )
+        ),
+
+        React.createElement('div', { className: 'card-grid' },
+            subjects.map(s =>
+                React.createElement('article', { key: s.id, className: 'item-card' },
+                    React.createElement('div', { className: 'item-card__head' },
+                        React.createElement('div', null,
+                            React.createElement('h2', { className: 'item-card__title' }, s.name),
+                            React.createElement('p', { className: 'item-card__desc' }, s.description || 'Описание не указано')
+                        ),
+                        React.createElement('div', { className: 'item-card__actions' },
                             React.createElement('button', {
-                                className: 'btn',
-                                style: { background: '#D32F2F', padding: '6px 12px', fontSize: '12px' },
-                                onClick: async () => {
-                                    if (window.confirm(`Удалить ученика ${st.user ? st.user.full_name : st.id}?`)) {
-                                        await fetch(`/api/students/${st.id}`, { method: 'DELETE' })
-                                        window.location.reload()
-                                    }
-                                }
+                                type: 'button',
+                                className: 'item-card__icon-btn item-card__icon-btn--danger',
+                                onClick: () => setConfirmModal({ isOpen: true, id: s.id, name: s.name }),
+                                title: 'Удалить'
                             }, 'Удалить')
                         )
                     )
+                )
+            )
+        ),
+
+        confirmModal.isOpen && React.createElement('div', {
+            style: { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
+            onClick: () => setConfirmModal({ isOpen: false, id: null, name: '' })
+        },
+            React.createElement('div', { className: 'glass-card', style: { width: '400px', padding: '32px', textAlign: 'center' }, onClick: (e) => e.stopPropagation() },
+                React.createElement('h3', { className: 'panel-title', style: { textAlign: 'center' } }, 'Удалить предмет'),
+                React.createElement('p', { style: { color: 'var(--text-secondary)', marginBottom: '24px' } }, `Удалить предмет «${confirmModal.name}»?`),
+                React.createElement('div', { style: { display: 'flex', gap: '10px', justifyContent: 'center' } },
+                    React.createElement('button', { className: 'btn btn--ghost', onClick: () => setConfirmModal({ isOpen: false, id: null, name: '' }) }, 'Отмена'),
+                    React.createElement('button', { className: 'btn btn--danger', onClick: confirmDelete }, 'Удалить')
                 )
             )
         )

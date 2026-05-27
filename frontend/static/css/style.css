@@ -189,3 +189,427 @@ tr:hover td {
     font-size: 14px;
     text-align: center;
 }
+
+/* шапка страниц */
+.page-header {
+    margin-bottom: 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.page-title {
+    font-size: 32px;
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+.page-subtitle {
+    color: var(--text-secondary);
+    margin: 6px 0 0 0;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.panel-title {
+    margin: 0 0 16px 0;
+    font-size: 17px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+}
+
+.form-label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.btn--compact {
+    padding: 10px 22px;
+    font-size: 13px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.btn--ghost {
+    background: var(--bg-sidebar);
+    color: var(--text-primary);
+}
+
+.btn--danger {
+    background: #B71C1C;
+}
+
+.btn--sm {
+    padding: 6px 14px;
+    font-size: 13px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.msg-banner {
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.msg-banner--ok {
+    background: #E8F5E9;
+    color: #2E7D32;
+}
+
+.msg-banner--err {
+    background: #FFEBEE;
+    color: #D32F2F;
+}
+
+.filter-bar {
+    margin-bottom: 20px;
+    padding: 16px 20px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-bar__label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-right: 4px;
+}
+
+.chip {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.chip:hover {
+    border-color: #D8D2C6;
+}
+
+.chip--active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #FFFFFF;
+    font-weight: 500;
+}
+
+.table-wrap {
+    overflow: hidden;
+    padding: 0 !important;
+}
+
+.table-wrap table {
+    margin-bottom: 0;
+}
+
+/* сетка карточек */
+.class-grid,
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.class-card,
+.item-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow-soft);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.class-card:hover,
+.item-card:hover {
+    border-color: #D8D2C6;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.06);
+}
+
+.class-card__head,
+.item-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.class-card__title,
+.item-card__title {
+    font-family: 'Inter', sans-serif;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 4px 0;
+    line-height: 1.2;
+}
+
+.class-card__year,
+.item-card__meta {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 400;
+    line-height: 1.45;
+}
+
+.item-card__desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin: 0;
+}
+
+.class-card__actions,
+.item-card__actions {
+    display: flex;
+    gap: 2px;
+    opacity: 0.35;
+    transition: opacity 0.2s;
+}
+
+.class-card:hover .class-card__actions,
+.class-card:focus-within .class-card__actions,
+.item-card:hover .item-card__actions,
+.item-card:focus-within .item-card__actions {
+    opacity: 1;
+}
+
+.class-card__icon-btn,
+.item-card__icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+    transition: background 0.15s, color 0.15s;
+}
+
+.class-card__icon-btn:hover,
+.item-card__icon-btn:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.class-card__icon-btn--danger:hover,
+.item-card__icon-btn--danger:hover {
+    color: #B71C1C;
+    background: #FFEBEE;
+}
+
+.class-card__stats,
+.item-card__stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.class-card__stat,
+.item-card__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.class-card__stat-value,
+.item-card__stat-value {
+    font-family: 'Inter', sans-serif;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.class-card__stat-label,
+.item-card__stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+/* заметки */
+.note-list {
+    display: grid;
+    gap: 12px;
+}
+
+.note-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow-soft);
+}
+
+.note-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.note-card__student {
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+}
+
+.note-card__author {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.note-card__date {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.note-card__text {
+    margin: 0 0 14px 0;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text-primary);
+}
+
+.note-card__actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* расписание */
+.schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.schedule-day {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow-soft);
+    min-height: 100px;
+}
+
+.schedule-day__title {
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.schedule-day__empty {
+    text-align: center;
+    padding: 24px 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.lesson-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+    align-items: flex-start;
+}
+
+.lesson-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.lesson-item__time {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    min-width: 44px;
+    padding-top: 2px;
+}
+
+.lesson-item__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.lesson-item__subject {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 3px;
+}
+
+.lesson-item__meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* аналитика */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 22px 20px;
+    box-shadow: var(--shadow-soft);
+    text-align: center;
+}
+
+.stat-card__label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.stat-card__value {
+    font-family: 'Inter', sans-serif;
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-bottom: 4px;
+}
+
+.stat-card__value--name {
+    font-size: 22px;
+}
+
+.stat-card__hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.stat-card__value--good { color: #2E7D32; }
+.stat-card__value--warn { color: #C62828; }
