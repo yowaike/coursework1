@@ -10,6 +10,7 @@ const StudentCabinet = () => {
     const [student, setStudent] = React.useState(null)
     // функция для хранения списка предметов
     const [subjects, setSubjects] = React.useState([])
+    const [finalGrades, setFinalGrades] = React.useState([])
     // функция для хранения текста новой заметки
     const [noteText, setNoteText] = React.useState('')
     // функция для управления загрузкой
@@ -20,6 +21,10 @@ const StudentCabinet = () => {
     // функция для загрузки данных при монтировании
     React.useEffect(() => {
         loadData()
+        const id = setInterval(() => {
+            loadData()
+        }, 7000)
+        return () => clearInterval(id)
     }, [])
 
     // функция для загрузки всех данных
@@ -32,11 +37,13 @@ const StudentCabinet = () => {
                 setStudent(studentData)
                 return Promise.all([
                     fetch('/api/grades/my', { credentials: 'include' }).then(r => r.ok ? r.json() : Promise.reject()),
+                    fetch('/api/final-grades', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
                     fetch('/api/notes', { credentials: 'include' }).then(r => r.ok ? r.json() : Promise.reject()),
                     fetch(`/api/schedule?class_id=${studentData.class_id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : Promise.reject()),
                     fetch('/api/subjects', { credentials: 'include' }).then(r => r.ok ? r.json() : Promise.reject())
-                ]).then(([gradesData, notesData, scheduleData, subjectsData]) => {
+                ]).then(([gradesData, finalGradesData, notesData, scheduleData, subjectsData]) => {
                     setGrades(gradesData)
+                    setFinalGrades(finalGradesData || [])
                     // фильтруем заметки — только для этого ученика
                     setNotes(notesData.filter(n => n.student_id === studentData.id))
                     setSchedule(scheduleData)
@@ -89,6 +96,11 @@ const StudentCabinet = () => {
         return map
     }, {})
 
+    const finalBySubject = finalGrades.reduce((acc, fg) => {
+        acc[fg.subject_id] = fg
+        return acc
+    }, {})
+
     // группировка оценок по предметам
     const gradesBySubject = {}
     grades.forEach(g => {
@@ -96,6 +108,13 @@ const StudentCabinet = () => {
             gradesBySubject[g.subject_id] = []
         }
         gradesBySubject[g.subject_id].push(g)
+    })
+
+    const currentGradesBySubject = {}
+    grades.forEach(g => {
+        if (g.grade_type !== 'current') return
+        if (!currentGradesBySubject[g.subject_id]) currentGradesBySubject[g.subject_id] = []
+        currentGradesBySubject[g.subject_id].push(g)
     })
 
     const allGrades = grades.map(g => g.grade_value).filter(val => typeof val === 'number')
@@ -113,51 +132,81 @@ const StudentCabinet = () => {
         ),
 
         React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '24px' } },
-            // табель успеваемости
-            React.createElement('div', { className: 'glass-card' },
-                React.createElement('h3', { className: 'panel-title' }, 'Табель успеваемости'),
-                Object.keys(gradesBySubject).length > 0 ?
-                    React.createElement('table', null,
-                        React.createElement('thead', null,
-                            React.createElement('tr', null,
-                                React.createElement('th', null, 'Предмет'),
-                                React.createElement('th', { style: { textAlign: 'center' } }, '1 четв'),
-                                React.createElement('th', { style: { textAlign: 'center' } }, '2 четв'),
-                                React.createElement('th', { style: { textAlign: 'center' } }, '3 четв'),
-                                React.createElement('th', { style: { textAlign: 'center' } }, '4 четв'),
-                                React.createElement('th', { style: { textAlign: 'center' } }, 'Год')
-                            )
-                        ),
-                        React.createElement('tbody', null,
-                            Object.entries(gradesBySubject).map(([subjectId, subjectGrades]) => {
-                                // собираем четвертные оценки
-                                const quarterGrades = {}
-                                subjectGrades.forEach(g => {
-                                    if (g.grade_type === 'quarter') {
-                                        quarterGrades[g.quarter] = g.grade_value
-                                    }
-                                })
-                                // считаем годовую
-                                const yearGrades = [1, 2, 3, 4].map(q => quarterGrades[q] || 0).filter(v => v > 0)
-                                const yearly = yearGrades.length > 0 ?
-                                    Math.round(yearGrades.reduce((sum, val) => sum + val, 0) / yearGrades.length)
-                                    : '—'
-
-                                return React.createElement('tr', { key: subjectId },
-                                    React.createElement('td', { style: { fontWeight: 500 } }, subjectNames[subjectId] || `ID ${subjectId}`),
-                                    [1, 2, 3, 4].map(q =>
-                                        React.createElement('td', { key: q, style: { textAlign: 'center' } },
-                                            quarterGrades[q] ?
-                                                React.createElement('span', { className: `grade-badge grade-${quarterGrades[q]}` }, quarterGrades[q])
-                                                : React.createElement('span', { style: { color: 'var(--text-secondary)' } }, '—')
-                                        )
+            React.createElement('div', null,
+                // текущие оценки
+                React.createElement('div', { className: 'glass-card', style: { marginBottom: '24px' } },
+                    React.createElement('h3', { className: 'panel-title' }, 'Текущие оценки'),
+                    Object.keys(currentGradesBySubject).length > 0
+                        ? React.createElement('div', { style: { display: 'grid', gap: '14px' } },
+                            Object.entries(currentGradesBySubject).map(([subjectId, list]) => {
+                                const sorted = [...list].sort((a, b) => new Date(b.date) - new Date(a.date))
+                                const last = sorted[0]
+                                return React.createElement('div', {
+                                    key: subjectId,
+                                    style: { padding: '12px 14px', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'var(--bg-card)' }
+                                },
+                                    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' } },
+                                        React.createElement('div', null,
+                                            React.createElement('div', { style: { fontWeight: 600 } }, subjectNames[subjectId] || `ID ${subjectId}`),
+                                            last && React.createElement('div', { style: { fontSize: '12px', color: 'var(--text-secondary)' } }, `${last.date} · ${last.work_type}`)
+                                        ),
+                                        last && React.createElement('span', { className: `grade-badge grade-${last.grade_value}` }, last.grade_value)
                                     ),
-                                    React.createElement('td', { style: { textAlign: 'center', fontWeight: 600 } }, yearly)
+                                    React.createElement('div', { style: { marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+                                        sorted.slice(0, 8).map((g, idx) =>
+                                            React.createElement('span', { key: idx, className: `grade-badge grade-${g.grade_value}`, title: `${g.date} · ${g.work_type}`, style: { width: 30, height: 30, fontSize: 13 } }, g.grade_value)
+                                        )
+                                    )
                                 )
                             })
                         )
-                    ) :
-                    React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '40px 0' } }, 'Оценок пока нет')
+                        : React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '20px 0' } }, 'Текущих оценок пока нет')
+                ),
+
+                // табель успеваемости
+                React.createElement('div', { className: 'glass-card' },
+                    React.createElement('h3', { className: 'panel-title' }, 'Табель успеваемости'),
+                    Object.keys(gradesBySubject).length > 0 ?
+                        React.createElement('table', null,
+                            React.createElement('thead', null,
+                                React.createElement('tr', null,
+                                    React.createElement('th', null, 'Предмет'),
+                                    React.createElement('th', { style: { textAlign: 'center' } }, '1 четв'),
+                                    React.createElement('th', { style: { textAlign: 'center' } }, '2 четв'),
+                                    React.createElement('th', { style: { textAlign: 'center' } }, '3 четв'),
+                                    React.createElement('th', { style: { textAlign: 'center' } }, '4 четв'),
+                                    React.createElement('th', { style: { textAlign: 'center' } }, 'Год')
+                                )
+                            ),
+                            React.createElement('tbody', null,
+                                Object.entries(gradesBySubject).map(([subjectId, subjectGrades]) => {
+                                    // собираем четвертные оценки
+                                    const quarterGrades = {}
+                                    subjectGrades.forEach(g => {
+                                        if (g.grade_type === 'quarter') {
+                                            quarterGrades[g.quarter] = g.grade_value
+                                        }
+                                    })
+                                    // считаем годовую
+                                    const fg = finalBySubject[Number(subjectId)]
+                                    const yearly = fg?.value ?? '—'
+
+                                    return React.createElement('tr', { key: subjectId },
+                                        React.createElement('td', { style: { fontWeight: 500 } }, subjectNames[subjectId] || `ID ${subjectId}`),
+                                        [1, 2, 3, 4].map(q =>
+                                            React.createElement('td', { key: q, style: { textAlign: 'center' } },
+                                                quarterGrades[q] ?
+                                                    React.createElement('span', { className: `grade-badge grade-${quarterGrades[q]}` }, quarterGrades[q])
+                                                    : React.createElement('span', { style: { color: 'var(--text-secondary)' } }, '—')
+                                            )
+                                        ),
+                                        React.createElement('td', { style: { textAlign: 'center', fontWeight: 600 } }, yearly)
+                                    )
+                                })
+                            )
+                        ) :
+                        React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '40px 0' } }, 'Оценок пока нет')
+                )
             ),
 
             React.createElement('div', null,

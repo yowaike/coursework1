@@ -1,5 +1,4 @@
 const TEACHER_WORK_TYPES = ['ДЗ', 'КР', 'ОТВ', 'СР', 'ТЕСТ']
-const ADMIN_WORK_TYPES = ['ЧЕТВ']
 
 const GradeBook = () => {
     const [grades, setGrades] = React.useState([])
@@ -7,12 +6,16 @@ const GradeBook = () => {
     const [subjects, setSubjects] = React.useState([])
     const [selectedClass, setSelectedClass] = React.useState('')
     const [selectedQuarter, setSelectedQuarter] = React.useState('')
+    const [gradeTypeFilter, setGradeTypeFilter] = React.useState('')
     const [selectedStudent, setSelectedStudent] = React.useState(null)
     const [userRole, setUserRole] = React.useState(null)
     const [studentsData, setStudentsData] = React.useState([])
     const [teachersData, setTeachersData] = React.useState([])
+    const [scheduleData, setScheduleData] = React.useState([])
     const [teacherProfile, setTeacherProfile] = React.useState(null)
     const [gradeMessage, setGradeMessage] = React.useState('')
+    const [editingGradeId, setEditingGradeId] = React.useState(null)
+    const [editGradeForm, setEditGradeForm] = React.useState({ grade_value: 5, work_type: 'ДЗ', quarter: 1, date: '' })
     const [gradeForm, setGradeForm] = React.useState({
         student_id: '',
         subject_id: '',
@@ -58,6 +61,7 @@ const GradeBook = () => {
                 if (auth.role === 'admin') {
                     tasks.push(fetch('/api/students', { credentials: 'include' }).then(r => r.ok ? r.json() : []))
                     tasks.push(fetch('/api/teachers', { credentials: 'include' }).then(r => r.ok ? r.json() : []))
+                    tasks.push(fetch('/api/schedule', { credentials: 'include' }).then(r => r.ok ? r.json() : []))
                 } else if (auth.role === 'teacher') {
                     tasks.push(fetch('/api/students/my', { credentials: 'include' }).then(r => r.ok ? r.json() : []))
                     tasks.push(fetch('/api/teachers/me', { credentials: 'include' }).then(r => r.ok ? r.json() : null))
@@ -65,13 +69,14 @@ const GradeBook = () => {
                 return Promise.all(tasks).then(results => ({ auth, results }))
             })
             .then(({ auth, results }) => {
-                const [g, c, s, students = [], teachersOrProfile = []] = results
+                const [g, c, s, students = [], teachersOrProfile = [], scheduleRows = []] = results
                 setGrades(g)
                 setClasses(c)
                 setSubjects(s)
                 setStudentsData(students)
                 if (auth.role === 'admin') {
                     setTeachersData(teachersOrProfile)
+                    setScheduleData(scheduleRows)
                     setGradeForm(prev => ({
                         ...prev,
                         student_id: students[0]?.id || '',
@@ -101,6 +106,48 @@ const GradeBook = () => {
             .catch(() => setLoading(false))
     }, [])
 
+    React.useEffect(() => {
+        if (!userRole) return
+        const id = setInterval(async () => {
+            try {
+                const updated = await fetch('/api/grades', { credentials: 'include' }).then(r => r.ok ? r.json() : [])
+                setGrades(updated)
+            } catch {
+                // ignore polling errors
+            }
+        }, 7000)
+        return () => clearInterval(id)
+    }, [userRole])
+
+    const selectedStudentRecord = React.useMemo(
+        () => studentsData.find(s => String(s.id) === String(gradeForm.student_id)),
+        [studentsData, gradeForm.student_id]
+    )
+
+    const availableTeachers = React.useMemo(() => {
+        if (userRole !== 'admin') return teachersData
+        if (!selectedStudentRecord?.class_id) {
+            return teachersData.filter(t => !gradeForm.subject_id || String(t.subject_id) === String(gradeForm.subject_id))
+        }
+        const filteredSchedule = scheduleData.filter(row =>
+            row.class_id === selectedStudentRecord.class_id &&
+            (!gradeForm.subject_id || String(row.subject_id) === String(gradeForm.subject_id))
+        )
+        const teacherIds = [...new Set(filteredSchedule.map(x => x.teacher_id))]
+        const bySchedule = teachersData.filter(t => teacherIds.includes(t.id))
+        if (bySchedule.length > 0) return bySchedule
+        return teachersData.filter(t => !gradeForm.subject_id || String(t.subject_id) === String(gradeForm.subject_id))
+    }, [userRole, teachersData, scheduleData, selectedStudentRecord, gradeForm.subject_id])
+
+    React.useEffect(() => {
+        if (userRole !== 'admin') return
+        if (!availableTeachers.length) return
+        const hasCurrent = availableTeachers.some(t => String(t.id) === String(gradeForm.teacher_id))
+        if (!hasCurrent) {
+            setGradeForm(prev => ({ ...prev, teacher_id: availableTeachers[0].id }))
+        }
+    }, [userRole, availableTeachers, gradeForm.teacher_id])
+
     const handleAddGrade = async (e) => {
         if (e && e.preventDefault) e.preventDefault()
         setGradeMessage('')
@@ -119,7 +166,9 @@ const GradeBook = () => {
                     teacher_id: Number(gradeForm.teacher_id),
                     grade_type: userRole === 'admin' ? 'quarter' : 'current',
                     grade_value: Number(gradeForm.grade_value),
-                    work_type: userRole === 'admin' ? 'ЧЕТВ' : gradeForm.work_type,
+                    work_type: userRole === 'admin'
+                        ? 'ЧЕТВ'
+                        : gradeForm.work_type,
                     quarter: Number(gradeForm.quarter),
                     date: gradeForm.date
                 })
@@ -137,14 +186,56 @@ const GradeBook = () => {
         }
     }
 
+    const startEditGrade = (g) => {
+        setEditingGradeId(g.id)
+        setEditGradeForm({
+            grade_value: g.grade_value,
+            work_type: g.work_type || 'ДЗ',
+            quarter: g.quarter,
+            date: g.date
+        })
+        setGradeMessage('')
+    }
+
+    const saveEditedGrade = async () => {
+        if (!editingGradeId) return
+        setGradeMessage('')
+        try {
+            const payload = {
+                grade_value: Number(editGradeForm.grade_value),
+                quarter: Number(editGradeForm.quarter),
+                date: editGradeForm.date
+            }
+            if (userRole !== 'admin') payload.work_type = editGradeForm.work_type
+            const res = await fetch(`/api/grades/${editingGradeId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(payload)
+            })
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}))
+                setGradeMessage(err.detail || 'Ошибка при обновлении оценки')
+                return
+            }
+            setEditingGradeId(null)
+            setGradeMessage('Оценка обновлена')
+            const updated = await fetch('/api/grades', { credentials: 'include' }).then(r => r.ok ? r.json() : [])
+            setGrades(updated)
+        } catch {
+            setGradeMessage('Ошибка соединения')
+        }
+    }
+
     if (loading) return React.createElement('div', { className: 'spinner' })
 
     const subjectMap = subjects.reduce((a, s) => { a[s.id] = s.name; return a }, {})
-    const workTypeOptions = userRole === 'admin' ? ADMIN_WORK_TYPES : TEACHER_WORK_TYPES
+    const workTypeOptions = TEACHER_WORK_TYPES
 
     let filtered = grades
     if (selectedClass) filtered = filtered.filter(g => g.class_id === Number(selectedClass))
     if (selectedQuarter) filtered = filtered.filter(g => g.quarter === Number(selectedQuarter))
+    if (gradeTypeFilter) filtered = filtered.filter(g => g.grade_type === gradeTypeFilter)
 
     // группировка по ученикам
     const studentMap = {}
@@ -155,13 +246,17 @@ const GradeBook = () => {
     })
 
     const studentsList = Object.values(studentMap).map(s => {
-        const vals = s.grades.filter(g => g.grade_type !== 'quarter').map(g => g.grade_value)
-        const avg = vals.length > 0 ? (vals.reduce((a,b) => a+b, 0) / vals.length).toFixed(2) : '—'
-        return { ...s, avg, count: vals.length }
+        const currentVals = s.grades.filter(g => g.grade_type === 'current').map(g => g.grade_value)
+        const quarterVals = s.grades.filter(g => g.grade_type === 'quarter').map(g => g.grade_value)
+        const baseVals = currentVals.length > 0 ? currentVals : quarterVals
+        const avg = baseVals.length > 0 ? (baseVals.reduce((a,b) => a+b, 0) / baseVals.length).toFixed(2) : '—'
+        return { ...s, avg, count: s.grades.length }
     })
 
     // детальные оценки выбранного ученика
-    const studentGrades = selectedStudent ? grades.filter(g => g.student_id === selectedStudent.id).sort((a,b) => new Date(b.date) - new Date(a.date)) : []
+    const studentGrades = selectedStudent
+        ? filtered.filter(g => g.student_id === selectedStudent.id).sort((a,b) => new Date(b.date) - new Date(a.date))
+        : []
 
     return React.createElement('div', null,
         React.createElement('div', { className: 'page-header', style: { marginBottom: '24px' } },
@@ -173,7 +268,9 @@ const GradeBook = () => {
 
         (userRole === 'admin' || userRole === 'teacher') && React.createElement('div', { className: 'glass-card', style: { marginBottom: '20px', padding: '22px', display: 'grid', gap: '14px' } },
             React.createElement('h3', { className: 'panel-title' },
-                userRole === 'admin' ? 'Добавить четвертную оценку' : 'Добавить оценку'
+                userRole === 'admin'
+                    ? 'Выставить четвертную оценку'
+                    : 'Добавить оценку'
             ),
             gradeMessage && React.createElement('div', { style: { color: gradeMessage.includes('Ошибка') ? '#D32F2F' : '#2E7D32', fontWeight: 600 } }, gradeMessage),
             React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' } },
@@ -191,7 +288,7 @@ const GradeBook = () => {
                         value: gradeForm.subject_id,
                         onChange: e => {
                             const subjectId = e.target.value
-                            const nextTeacher = teachersData.find(t => String(t.subject_id) === subjectId)
+                            const nextTeacher = availableTeachers.find(t => String(t.subject_id) === subjectId) || teachersData.find(t => String(t.subject_id) === subjectId)
                             setGradeForm({ ...gradeForm, subject_id: subjectId, teacher_id: nextTeacher?.id || '' })
                         }
                     },
@@ -204,8 +301,7 @@ const GradeBook = () => {
                         onChange: e => setGradeForm({ ...gradeForm, teacher_id: e.target.value })
                     },
                         React.createElement('option', { value: '' }, 'Выберите учителя'),
-                        teachersData
-                            .filter(t => !gradeForm.subject_id || String(t.subject_id) === String(gradeForm.subject_id))
+                        availableTeachers
                             .map(t => React.createElement('option', { key: t.id, value: t.id }, `${t.user?.full_name || 'Учитель'} (${t.subject_name || t.subject_id})`))
                     )
                 ) : React.createElement('div', { style: { display: 'grid', gap: '8px' } },
@@ -249,6 +345,11 @@ const GradeBook = () => {
 
         // фильтры
         React.createElement('div', { className: 'glass-card', style: { marginBottom: '20px', padding: '16px 20px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' } },
+            React.createElement('select', { className: 'input', value: gradeTypeFilter, onChange: e => { setGradeTypeFilter(e.target.value); setSelectedStudent(null) }, style: { width: '170px', marginBottom: 0 } },
+                React.createElement('option', { value: '' }, 'Все типы'),
+                React.createElement('option', { value: 'current' }, 'Текущие'),
+                React.createElement('option', { value: 'quarter' }, 'Четвертные')
+            ),
             React.createElement('select', { className: 'input', value: selectedClass, onChange: e => { setSelectedClass(e.target.value); setSelectedStudent(null) }, style: { width: '160px', marginBottom: 0 } },
                 React.createElement('option', { value: '' }, 'Все классы'),
                 classes.map(c => React.createElement('option', { key: c.id, value: c.id }, c.name))
@@ -271,29 +372,75 @@ const GradeBook = () => {
                         React.createElement('thead', null,
                             React.createElement('tr', { style: { background: 'var(--bg-main)' } },
                                 React.createElement('th', { style: { padding: '12px 16px' } }, 'Дата'),
-                                React.createElement('th', { style: { padding: '12px 16px' } }, 'Предмет'),
+                                React.createElement('th', { style: { padding: '12px 16px' } }, 'Урок'),
                                 React.createElement('th', { style: { padding: '12px 16px', textAlign: 'center' } }, 'Оценка'),
-                                React.createElement('th', { style: { padding: '12px 16px' } }, 'Тип работы'),
                                 React.createElement('th', { style: { padding: '12px 16px', textAlign: 'center' } }, 'Четверть'),
-                        React.createElement('th', { style: { padding: '12px 16px', textAlign: 'center' } }, 'Действие')
+                                React.createElement('th', { style: { padding: '12px 16px' } }, 'Учитель'),
+                                React.createElement('th', { style: { padding: '12px 16px', textAlign: 'center' } }, 'Действие')
                             )
                         ),
                         React.createElement('tbody', null,
                             studentGrades.map((g, i) => React.createElement('tr', { key: i },
                                 React.createElement('td', { style: { padding: '10px 16px' } }, g.date),
-                                React.createElement('td', { style: { padding: '10px 16px' } }, subjectMap[g.subject_id] || g.subject_id),
-                                React.createElement('td', { style: { padding: '10px 16px', textAlign: 'center' } },
-                                    React.createElement('span', { className: `grade-badge grade-${g.grade_value}` }, g.grade_value)
+                                React.createElement('td', { style: { padding: '10px 16px' } },
+                                    React.createElement('div', { style: { fontWeight: 500 } }, subjectMap[g.subject_id] || g.subject_id),
+                                    React.createElement('div', { style: { color: 'var(--text-secondary)', fontSize: '12px' } }, g.work_type)
                                 ),
-                                React.createElement('td', { style: { padding: '10px 16px', color: 'var(--text-secondary)' } }, g.work_type),
-                                React.createElement('td', { style: { padding: '10px 16px', textAlign: 'center' } }, g.quarter),
+                                React.createElement('td', { style: { padding: '10px 16px', textAlign: 'center' } },
+                                    editingGradeId === g.id
+                                        ? React.createElement('input', {
+                                            className: 'input',
+                                            type: 'number',
+                                            min: 2,
+                                            max: 5,
+                                            value: editGradeForm.grade_value,
+                                            onChange: e => setEditGradeForm({ ...editGradeForm, grade_value: Number(e.target.value) }),
+                                            style: { width: '70px', margin: '0 auto' }
+                                        })
+                                        : React.createElement('span', { className: `grade-badge grade-${g.grade_value}` }, g.grade_value)
+                                ),
+                                React.createElement('td', { style: { padding: '10px 16px', textAlign: 'center' } },
+                                    editingGradeId === g.id
+                                        ? React.createElement('select', {
+                                            className: 'input',
+                                            value: editGradeForm.quarter,
+                                            onChange: e => setEditGradeForm({ ...editGradeForm, quarter: Number(e.target.value) }),
+                                            style: { width: '110px', margin: '0 auto' }
+                                        }, [1, 2, 3, 4].map(q => React.createElement('option', { key: q, value: q }, `${q} четв.`)))
+                                        : g.quarter
+                                ),
+                                React.createElement('td', { style: { padding: '10px 16px', color: 'var(--text-secondary)' } }, g.teacher_name || '—'),
                                 React.createElement('td', { style: { padding: '10px 16px', textAlign: 'center' } },
                                     (userRole === 'admin' || (userRole === 'teacher' && g.grade_type !== 'quarter')) &&
-                                    React.createElement('button', {
-                                        className: 'btn',
-                                        style: { padding: '6px 12px', fontSize: '14px' },
-                                        onClick: () => handleDeleteGrade(g.id)
-                                    }, 'Удалить')
+                                    React.createElement('div', { style: { display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' } },
+                                        editingGradeId === g.id && userRole !== 'admin' && React.createElement('select', {
+                                            className: 'input',
+                                            value: editGradeForm.work_type,
+                                            onChange: e => setEditGradeForm({ ...editGradeForm, work_type: e.target.value }),
+                                            style: { width: '92px', marginBottom: 0 }
+                                        }, TEACHER_WORK_TYPES.map(wt => React.createElement('option', { key: wt, value: wt }, wt))),
+                                        editingGradeId === g.id ? React.createElement(React.Fragment, null,
+                                            React.createElement('input', {
+                                                className: 'input',
+                                                type: 'date',
+                                                value: editGradeForm.date,
+                                                onChange: e => setEditGradeForm({ ...editGradeForm, date: e.target.value }),
+                                                style: { width: '145px', marginBottom: 0 }
+                                            }),
+                                            React.createElement('button', { className: 'btn btn--sm', onClick: saveEditedGrade }, 'Сохранить'),
+                                            React.createElement('button', { className: 'btn btn--sm btn--ghost', onClick: () => setEditingGradeId(null) }, 'Отмена')
+                                        ) : React.createElement(React.Fragment, null,
+                                            React.createElement('button', {
+                                                className: 'btn btn--sm btn--ghost',
+                                                onClick: () => startEditGrade(g)
+                                            }, 'Изменить'),
+                                            React.createElement('button', {
+                                                className: 'btn btn--sm',
+                                                style: { fontSize: '14px' },
+                                                onClick: () => handleDeleteGrade(g.id)
+                                            }, 'Удалить')
+                                        )
+                                    )
                                 )
                             ))
                         )

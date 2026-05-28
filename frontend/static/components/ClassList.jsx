@@ -9,6 +9,33 @@ const ClassList = () => {
     const [confirmModal, setConfirmModal] = React.useState({ isOpen: false, id: null, name: '' })
 
     const emptyForm = { name: '', year: 2024, max_students: 30, lessons_per_week: 30 }
+    const sanitizeNumericInput = (value) => String(value ?? '').replace(/[^\d]/g, '')
+    const toPositiveInt = (value) => {
+        const digits = sanitizeNumericInput(value)
+        if (!digits) return null
+        const parsed = parseInt(digits, 10)
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+    }
+
+    const parseClassName = (name = '') => {
+        const normalized = String(name).trim().toUpperCase()
+        const match = normalized.match(/^(\d+)\s*([A-ZА-ЯЁ]?)/)
+        if (!match) return { grade: Number.MAX_SAFE_INTEGER, letter: normalized }
+        return { grade: Number(match[1]), letter: match[2] || '' }
+    }
+
+    const sortedClasses = React.useMemo(() => {
+        return [...classes].sort((a, b) => {
+            const pa = parseClassName(a.name)
+            const pb = parseClassName(b.name)
+            if (pa.grade !== pb.grade) return pa.grade - pb.grade
+            const letterCmp = pa.letter.localeCompare(pb.letter, 'ru', { sensitivity: 'base' })
+            if (letterCmp !== 0) return letterCmp
+            const nameCmp = String(a.name || '').localeCompare(String(b.name || ''), 'ru', { numeric: true, sensitivity: 'base' })
+            if (nameCmp !== 0) return nameCmp
+            return (a.id || 0) - (b.id || 0)
+        })
+    }, [classes])
 
     const loadClasses = () =>
         fetch('/api/classes', { credentials: 'include' })
@@ -25,10 +52,17 @@ const ClassList = () => {
         e.preventDefault()
         setError('')
         if (!formData.name) { setError('Введите название класса'); return }
+        const maxStudents = toPositiveInt(formData.max_students)
+        const lessonsPerWeek = toPositiveInt(formData.lessons_per_week)
+        if (!maxStudents || !lessonsPerWeek) { setError('Введите корректные значения (больше 0)'); return }
         try {
             const res = await fetch('/api/classes', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                credentials: 'include', body: JSON.stringify(formData)
+                credentials: 'include', body: JSON.stringify({
+                    ...formData,
+                    max_students: maxStudents,
+                    lessons_per_week: lessonsPerWeek
+                })
             })
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}))
@@ -44,6 +78,12 @@ const ClassList = () => {
     const handleUpdate = async (e) => {
         e.preventDefault()
         setError('')
+        const maxStudents = toPositiveInt(editingClass.max_students)
+        const lessonsPerWeek = toPositiveInt(editingClass.lessons_per_week)
+        if (!maxStudents || !lessonsPerWeek) {
+            setError('Введите корректные значения (больше 0)')
+            return
+        }
         try {
             const res = await fetch(`/api/classes/${editingClass.id}`, {
                 method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -51,8 +91,8 @@ const ClassList = () => {
                 body: JSON.stringify({
                     name: editingClass.name,
                     year: Number(editingClass.year),
-                    max_students: Number(editingClass.max_students),
-                    lessons_per_week: Number(editingClass.lessons_per_week)
+                    max_students: maxStudents,
+                    lessons_per_week: lessonsPerWeek
                 })
             })
             if (!res.ok) {
@@ -85,11 +125,25 @@ const ClassList = () => {
             ),
             React.createElement('div', null,
                 React.createElement('label', { className: 'form-label' }, 'Макс. учеников'),
-                React.createElement('input', { className: 'input', type: 'number', min: 1, value: data.max_students, onChange: (e) => onChange({ ...data, max_students: Number(e.target.value) }) })
+                React.createElement('input', {
+                    className: 'input',
+                    type: 'text',
+                    inputMode: 'numeric',
+                    value: String(data.max_students ?? ''),
+                    placeholder: '30',
+                    onChange: (e) => onChange({ ...data, max_students: sanitizeNumericInput(e.target.value) })
+                })
             ),
             React.createElement('div', null,
                 React.createElement('label', { className: 'form-label' }, 'Уроков в неделю'),
-                React.createElement('input', { className: 'input', type: 'number', min: 1, value: data.lessons_per_week, onChange: (e) => onChange({ ...data, lessons_per_week: Number(e.target.value) }) })
+                React.createElement('input', {
+                    className: 'input',
+                    type: 'text',
+                    inputMode: 'numeric',
+                    value: String(data.lessons_per_week ?? ''),
+                    placeholder: '30',
+                    onChange: (e) => onChange({ ...data, lessons_per_week: sanitizeNumericInput(e.target.value) })
+                })
             ),
             React.createElement('div', { style: { gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px' } },
                 React.createElement('button', {
@@ -132,7 +186,7 @@ const ClassList = () => {
         ),
 
         React.createElement('div', { className: 'class-grid' },
-            classes.map(c =>
+            sortedClasses.map(c =>
                 React.createElement('article', { key: c.id, className: 'class-card' },
                     React.createElement('div', { className: 'class-card__head' },
                         React.createElement('div', null,

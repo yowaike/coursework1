@@ -27,6 +27,10 @@ const TeacherCabinet = () => {
     // функция для загрузки данных при монтировании
     React.useEffect(() => {
         loadData()
+        const id = setInterval(() => {
+            loadData()
+        }, 7000)
+        return () => clearInterval(id)
     }, [])
 
     // функция для загрузки всех данных учителя

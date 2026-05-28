@@ -3,9 +3,18 @@ const SubjectList = () => {
     const [subjects, setSubjects] = React.useState([])
     const [showForm, setShowForm] = React.useState(false)
     const [formData, setFormData] = React.useState({ name: '', description: '' })
+    const [editingSubject, setEditingSubject] = React.useState(null)
     const [loading, setLoading] = React.useState(true)
     const [error, setError] = React.useState('')
     const [confirmModal, setConfirmModal] = React.useState({ isOpen: false, id: null, name: '' })
+    const sortedSubjects = React.useMemo(
+        () => [...subjects].sort((a, b) => {
+            const byName = String(a.name || '').localeCompare(String(b.name || ''), 'ru', { sensitivity: 'base' })
+            if (byName !== 0) return byName
+            return (a.id || 0) - (b.id || 0)
+        }),
+        [subjects]
+    )
 
     React.useEffect(() => {
         fetch('/api/subjects', { credentials: 'include' })
@@ -25,6 +34,30 @@ const SubjectList = () => {
             })
             if (!res.ok) throw new Error('Не удалось сохранить')
             setShowForm(false); setFormData({ name: '', description: '' })
+            const updated = await fetch('/api/subjects', { credentials: 'include' }).then(r => r.json())
+            setSubjects(updated)
+        } catch (err) { setError(err.message) }
+    }
+
+    const handleUpdate = async (e) => {
+        e.preventDefault()
+        if (!editingSubject) return
+        setError('')
+        if (!formData.name) { setError('Введите название предмета'); return }
+        try {
+            const res = await fetch(`/api/subjects/${editingSubject.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name: formData.name, description: formData.description })
+            })
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}))
+                throw new Error(err.detail || 'Не удалось обновить')
+            }
+            setEditingSubject(null)
+            setShowForm(false)
+            setFormData({ name: '', description: '' })
             const updated = await fetch('/api/subjects', { credentials: 'include' }).then(r => r.json())
             setSubjects(updated)
         } catch (err) { setError(err.message) }
@@ -50,28 +83,39 @@ const SubjectList = () => {
             ),
             React.createElement('button', {
                 className: 'btn btn--compact',
-                onClick: () => { setShowForm(!showForm); setError('') }
+                onClick: () => {
+                    setShowForm(!showForm)
+                    if (showForm) {
+                        setEditingSubject(null)
+                        setFormData({ name: '', description: '' })
+                    }
+                    setError('')
+                }
             }, showForm ? 'Отмена' : 'Добавить предмет')
         ),
 
         error && React.createElement('div', { className: 'error-msg' }, error),
 
         showForm && React.createElement('div', { className: 'glass-card', style: { marginBottom: '24px' } },
-            React.createElement('h3', { className: 'panel-title' }, 'Новый предмет'),
-            React.createElement('form', { onSubmit: handleAdd },
+            React.createElement('h3', { className: 'panel-title' }, editingSubject ? 'Редактировать предмет' : 'Новый предмет'),
+            React.createElement('form', { onSubmit: editingSubject ? handleUpdate : handleAdd },
                 React.createElement('label', { className: 'form-label' }, 'Название'),
                 React.createElement('input', { className: 'input', placeholder: 'Математика', value: formData.name, onChange: (e) => setFormData({ ...formData, name: e.target.value }) }),
                 React.createElement('label', { className: 'form-label' }, 'Описание'),
                 React.createElement('textarea', { className: 'input', placeholder: 'Краткое описание...', value: formData.description, onChange: (e) => setFormData({ ...formData, description: e.target.value }), rows: 2, style: { marginBottom: 0 } }),
                 React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' } },
-                    React.createElement('button', { className: 'btn btn--ghost', type: 'button', onClick: () => setShowForm(false) }, 'Отмена'),
-                    React.createElement('button', { className: 'btn btn--compact', type: 'submit' }, 'Сохранить')
+                    React.createElement('button', {
+                        className: 'btn btn--ghost',
+                        type: 'button',
+                        onClick: () => { setShowForm(false); setEditingSubject(null); setFormData({ name: '', description: '' }) }
+                    }, 'Отмена'),
+                    React.createElement('button', { className: 'btn btn--compact', type: 'submit' }, editingSubject ? 'Обновить' : 'Сохранить')
                 )
             )
         ),
 
         React.createElement('div', { className: 'card-grid' },
-            subjects.map(s =>
+            sortedSubjects.map(s =>
                 React.createElement('article', { key: s.id, className: 'item-card' },
                     React.createElement('div', { className: 'item-card__head' },
                         React.createElement('div', null,
@@ -79,6 +123,17 @@ const SubjectList = () => {
                             React.createElement('p', { className: 'item-card__desc' }, s.description || 'Описание не указано')
                         ),
                         React.createElement('div', { className: 'item-card__actions' },
+                            React.createElement('button', {
+                                type: 'button',
+                                className: 'item-card__icon-btn',
+                                onClick: () => {
+                                    setEditingSubject(s)
+                                    setFormData({ name: s.name || '', description: s.description || '' })
+                                    setShowForm(true)
+                                    setError('')
+                                },
+                                title: 'Редактировать'
+                            }, 'Изм.'),
                             React.createElement('button', {
                                 type: 'button',
                                 className: 'item-card__icon-btn item-card__icon-btn--danger',

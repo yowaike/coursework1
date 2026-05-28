@@ -1,9 +1,10 @@
 const TeacherList = () => {
     const [teachers, setTeachers] = React.useState([])
     const [subjects, setSubjects] = React.useState([])
+    const [classes, setClasses] = React.useState([])
     const [showForm, setShowForm] = React.useState(false)
     const [editingTeacher, setEditingTeacher] = React.useState(null)
-    const [editFormData, setEditFormData] = React.useState({ full_name: '', email: '', subject_id: 1, room_number: '' })
+    const [editFormData, setEditFormData] = React.useState({ full_name: '', email: '', subject_id: 1, room_number: '', class_ids: [] })
     const [loading, setLoading] = React.useState(true)
     const [error, setError] = React.useState('')
     const [formData, setFormData] = React.useState({ full_name: '', email: '', password: 'teacher123', subject_id: 1, room_number: '' })
@@ -12,10 +13,12 @@ const TeacherList = () => {
     React.useEffect(() => {
         Promise.all([
             fetch('/api/teachers', { credentials: 'include' }).then(r => r.json()),
-            fetch('/api/subjects', { credentials: 'include' }).then(r => r.json())
-        ]).then(([teachersData, subjectsData]) => {
+            fetch('/api/subjects', { credentials: 'include' }).then(r => r.json()),
+            fetch('/api/classes', { credentials: 'include' }).then(r => r.json())
+        ]).then(([teachersData, subjectsData, classesData]) => {
             setTeachers(teachersData)
             setSubjects(subjectsData)
+            setClasses(classesData)
             if (subjectsData.length > 0) {
                 setFormData(prev => ({ ...prev, subject_id: subjectsData[0].id }))
             }
@@ -59,7 +62,8 @@ const TeacherList = () => {
             full_name: teacher.user?.full_name || '',
             email: teacher.user?.email || '',
             subject_id: teacher.subject_id || subjects[0]?.id || 1,
-            room_number: teacher.room_number || ''
+            room_number: teacher.room_number || '',
+            class_ids: Array.isArray(teacher.class_ids) ? teacher.class_ids : []
         })
         setError('')
     }
@@ -79,6 +83,34 @@ const TeacherList = () => {
                 throw new Error(errData.detail || 'Не удалось обновить')
             }
             setEditingTeacher(null)
+            const updated = await fetch('/api/teachers', { credentials: 'include' }).then(r => r.json())
+            setTeachers(updated)
+        } catch (err) {
+            setError(err.message)
+        }
+    }
+
+    const toggleEditClass = (classId) => {
+        const classIds = editFormData.class_ids || []
+        const next = classIds.includes(classId)
+            ? classIds.filter(id => id !== classId)
+            : [...classIds, classId]
+        setEditFormData({ ...editFormData, class_ids: next })
+    }
+
+    const handleSaveTeacherClasses = async () => {
+        if (!editingTeacher) return
+        try {
+            const res = await fetch(`/api/teachers/${editingTeacher.id}/class-assignments`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ class_ids: editFormData.class_ids || [] })
+            })
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}))
+                throw new Error(errData.detail || 'Не удалось обновить нагрузку')
+            }
             const updated = await fetch('/api/teachers', { credentials: 'include' }).then(r => r.json())
             setTeachers(updated)
         } catch (err) {
@@ -175,6 +207,23 @@ const TeacherList = () => {
                     React.createElement('label', { className: 'form-label' }, 'Кабинет'),
                     React.createElement('input', { className: 'input', placeholder: '301', value: editFormData.room_number, onChange: (e) => setEditFormData({ ...editFormData, room_number: e.target.value }) })
                 ),
+                React.createElement('div', { style: { gridColumn: '1 / -1' } },
+                    React.createElement('label', { className: 'form-label' }, 'Классы, где ведет предмет'),
+                    React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '8px' } },
+                        classes.map(c => {
+                            const active = (editFormData.class_ids || []).includes(c.id)
+                            return React.createElement('button', {
+                                key: c.id,
+                                type: 'button',
+                                className: 'chip' + (active ? ' chip--active' : ''),
+                                onClick: () => toggleEditClass(c.id)
+                            }, c.name)
+                        })
+                    ),
+                    React.createElement('div', { style: { marginTop: '10px' } },
+                        React.createElement('button', { className: 'btn btn--sm btn--ghost', type: 'button', onClick: handleSaveTeacherClasses }, 'Сохранить нагрузку')
+                    )
+                ),
                 React.createElement('div', { style: { gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' } },
                     React.createElement('button', { className: 'btn', type: 'button', onClick: () => setEditingTeacher(null), style: { background: 'var(--bg-sidebar)', color: 'var(--text-primary)' } }, 'Отмена'),
                     React.createElement('button', { className: 'btn', type: 'submit' }, 'Обновить')
@@ -189,6 +238,7 @@ const TeacherList = () => {
                         React.createElement('th', { style: { padding: '16px 20px' } }, 'ФИО'),
                         React.createElement('th', { style: { padding: '16px 20px' } }, 'Предмет'),
                         React.createElement('th', { style: { padding: '16px 20px' } }, 'Кабинет'),
+                        React.createElement('th', { style: { padding: '16px 20px' } }, 'Классы'),
                         React.createElement('th', { style: { padding: '16px 20px', textAlign: 'right' } }, '')
                     )
                 ),
@@ -198,13 +248,16 @@ const TeacherList = () => {
                             React.createElement('td', { style: { padding: '14px 20px', fontWeight: 500 } }, t.user ? t.user.full_name : '—'),
                             React.createElement('td', { style: { padding: '14px 20px', color: 'var(--text-secondary)' } }, t.subject_name || `Предмет ${t.subject_id}`),
                             React.createElement('td', { style: { padding: '14px 20px', color: 'var(--text-secondary)' } }, t.room_number || '—'),
-                            React.createElement('td', { style: { padding: '14px 20px', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '8px' } },
-                                React.createElement('button', { className: 'btn btn--sm btn--ghost', onClick: () => openEditTeacher(t), style: { marginRight: '6px' } }, 'Изменить'),
-                                React.createElement('button', { className: 'btn btn--sm btn--danger', onClick: () => openConfirmModal(t.id, t.user ? t.user.full_name : t.id) }, 'Удалить')
+                            React.createElement('td', { style: { padding: '14px 20px', color: 'var(--text-secondary)', fontSize: '13px' } }, (t.class_names || []).join(', ') || 'не назначены'),
+                            React.createElement('td', { style: { padding: '14px 20px', textAlign: 'right' } },
+                                React.createElement('div', { style: { display: 'inline-flex', gap: '8px' } },
+                                    React.createElement('button', { className: 'btn btn--sm btn--ghost', onClick: () => openEditTeacher(t), style: { marginRight: '6px' } }, 'Изменить'),
+                                    React.createElement('button', { className: 'btn btn--sm btn--danger', onClick: () => openConfirmModal(t.id, t.user ? t.user.full_name : t.id) }, 'Удалить')
+                                )
                             )
                         )
                     ) : React.createElement('tr', null,
-                        React.createElement('td', { colSpan: 4, style: { textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' } }, 'Учителя не найдены')
+                        React.createElement('td', { colSpan: 5, style: { textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' } }, 'Учителя не найдены')
                     )
                 )
             )

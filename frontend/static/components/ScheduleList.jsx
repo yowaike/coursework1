@@ -6,6 +6,7 @@ const ScheduleList = () => {
     const [teachers, setTeachers] = React.useState([])
     const [selectedClass, setSelectedClass] = React.useState('')
     const [showForm, setShowForm] = React.useState(false)
+    const [editingLesson, setEditingLesson] = React.useState(null)
     const [formData, setFormData] = React.useState({ 
         class_id: 1, subject_id: 1, teacher_id: 1, day_of_week: 1, start_time: '08:00', room: '101' 
     })
@@ -65,6 +66,30 @@ const ScheduleList = () => {
         }
     }
 
+    const handleUpdate = async (e) => {
+        e.preventDefault()
+        if (!editingLesson) return
+        setError('')
+        try {
+            const res = await fetch(`/api/schedule/${editingLesson.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(formData)
+            })
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}))
+                throw new Error(err.detail || 'Не удалось обновить')
+            }
+            setEditingLesson(null)
+            setShowForm(false)
+            const updated = await fetch('/api/schedule', { credentials: 'include' }).then(r => r.json())
+            setSchedule(updated)
+        } catch (err) {
+            setError(err.message)
+        }
+    }
+
     const handleDelete = async () => {
         try {
             const res = await fetch(`/api/schedule/${confirmModal.id}`, {
@@ -86,6 +111,11 @@ const ScheduleList = () => {
     const classMap = classes.reduce((acc, c) => { acc[c.id] = c.name; return acc }, {})
     const subjectMap = subjects.reduce((acc, s) => { acc[s.id] = { name: s.name, color: getSubjectColor(s.id) }; return acc }, {})
     const teacherMap = teachers.reduce((acc, t) => { acc[t.id] = t.user ? t.user.full_name : '—'; return acc }, {})
+    const getTeacherOptionLabel = (teacher) => {
+        const name = teacher?.user?.full_name || `#${teacher?.id || '—'}`
+        const subjectName = teacher?.subject_name || subjectMap[teacher?.subject_id]?.name
+        return subjectName ? `${name} (${subjectName})` : name
+    }
 
     const filteredSchedule = selectedClass 
         ? schedule.filter(s => s.class_id === Number(selectedClass)) 
@@ -112,7 +142,7 @@ const ScheduleList = () => {
             ),
             React.createElement('button', {
                 className: 'btn btn--compact',
-                onClick: () => { setShowForm(!showForm); setError('') }
+                onClick: () => { setShowForm(!showForm); if (!showForm) setEditingLesson(null); setError('') }
             }, showForm ? 'Отмена' : 'Добавить урок')
         ),
 
@@ -131,9 +161,9 @@ const ScheduleList = () => {
         error && React.createElement('div', { className: 'error-msg' }, error),
 
         showForm && React.createElement('div', { className: 'glass-card', style: { marginBottom: '20px' } },
-            React.createElement('h3', { className: 'panel-title' }, 'Новый урок'),
+            React.createElement('h3', { className: 'panel-title' }, editingLesson ? 'Редактировать урок' : 'Новый урок'),
             React.createElement('form', { 
-                onSubmit: handleAdd,
+                onSubmit: editingLesson ? handleUpdate : handleAdd,
                 style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }
             },
                 React.createElement('div', null,
@@ -151,7 +181,7 @@ const ScheduleList = () => {
                 React.createElement('div', null,
                     React.createElement('label', { className: 'form-label' }, 'Учитель'),
                     React.createElement('select', { className: 'input', value: formData.teacher_id, onChange: (e) => setFormData({...formData, teacher_id: Number(e.target.value)}) },
-                        teachers.map(t => React.createElement('option', { key: t.id, value: t.id }, t.user ? t.user.full_name : t.id))
+                        teachers.map(t => React.createElement('option', { key: t.id, value: t.id }, getTeacherOptionLabel(t)))
                     )
                 ),
                 React.createElement('div', null,
@@ -170,7 +200,7 @@ const ScheduleList = () => {
                 ),
                 React.createElement('div', { style: { gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' } },
                     React.createElement('button', { className: 'btn btn--ghost', type: 'button', onClick: () => setShowForm(false) }, 'Отмена'),
-                    React.createElement('button', { className: 'btn btn--compact', type: 'submit' }, 'Добавить')
+                    React.createElement('button', { className: 'btn btn--compact', type: 'submit' }, editingLesson ? 'Сохранить' : 'Добавить')
                 )
             )
         ),
@@ -191,6 +221,24 @@ const ScheduleList = () => {
                                     React.createElement('div', { className: 'lesson-item__meta' }, teacherMap[lesson.teacher_id] || '—'),
                                     lesson.room && React.createElement('div', { className: 'lesson-item__meta' }, `Кабинет ${lesson.room}`)
                                 ),
+                                React.createElement('button', {
+                                    type: 'button',
+                                    className: 'item-card__icon-btn',
+                                    onClick: () => {
+                                        setEditingLesson(lesson)
+                                        setFormData({
+                                            class_id: lesson.class_id,
+                                            subject_id: lesson.subject_id,
+                                            teacher_id: lesson.teacher_id,
+                                            day_of_week: lesson.day_of_week,
+                                            start_time: lesson.start_time,
+                                            room: lesson.room || ''
+                                        })
+                                        setShowForm(true)
+                                        setError('')
+                                    },
+                                    title: 'Редактировать'
+                                }, '✎'),
                                 React.createElement('button', {
                                     type: 'button',
                                     className: 'item-card__icon-btn item-card__icon-btn--danger',

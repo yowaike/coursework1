@@ -60,10 +60,10 @@ const Analytics = () => {
             React.createElement('h3', { className: 'panel-title' }, 'Успеваемость по классам'),
             stats.classesAvg.length > 0 ?
                 React.createElement('div', null,
-                    React.createElement('div', { style: { display: 'flex', alignItems: 'flex-end', gap: '12px', height: '160px', marginBottom: '32px', paddingBottom: '24px', borderBottom: '1px solid var(--border-color)' } },
+                    React.createElement('div', { style: { display: 'flex', alignItems: 'flex-end', gap: '12px', height: '170px', marginTop: '14px', marginBottom: '32px', paddingBottom: '24px', borderBottom: '1px solid var(--border-color)' } },
                         stats.classesAvg.map(c => {
                             const maxAvg = Math.max(...stats.classesAvg.map(x => x.avg), 5)
-                            const height = (c.avg / maxAvg) * 140
+                            const height = (c.avg / maxAvg) * 126
                             const color = c.avg >= 4.5 ? '#2E7D32' : c.avg >= 3.5 ? '#F57F17' : '#D32F2F'
                             const bg = c.avg >= 4.5 ? '#E8F5E9' : c.avg >= 3.5 ? '#FFF8E1' : '#FFEBEE'
                             return React.createElement('div', { key: c.class, style: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' } },

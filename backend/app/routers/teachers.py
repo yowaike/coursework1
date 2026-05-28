@@ -9,6 +9,17 @@ from ..audit import log_audit
 
 router = APIRouter()
 
+def _teacher_class_ids(db: Session, teacher_id: int) -> list[int]:
+    assignment_ids = [r[0] for r in db.query(models.TeacherAssignment.class_id).filter(
+        models.TeacherAssignment.teacher_id == teacher_id
+    ).distinct().all()]
+    if assignment_ids:
+        return assignment_ids
+    schedule_ids = [r[0] for r in db.query(models.Schedule.class_id).filter(
+        models.Schedule.teacher_id == teacher_id
+    ).distinct().all()]
+    return schedule_ids
+
 # функция для получения списка учителей (только завуч)
 @router.get("/")
 def get_teachers(
@@ -22,6 +33,8 @@ def get_teachers(
     
     result = []
     for t in teachers:
+        class_ids = _teacher_class_ids(db, t.id)
+        class_names = [c.name for c in db.query(models.Class).filter(models.Class.id.in_(class_ids)).all()] if class_ids else []
         result.append({
             "id": t.id,
             "user": {
@@ -30,7 +43,9 @@ def get_teachers(
             } if t.user else None,
             "subject_id": t.subject_id,
             "subject_name": t.subject.name if t.subject else None,
-            "room_number": t.room_number
+            "room_number": t.room_number,
+            "class_ids": class_ids,
+            "class_names": class_names
         })
     return result
 
@@ -204,3 +219,38 @@ def update_teacher(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Ошибка сохранения: {str(e)}")
+
+
+@router.put("/{teacher_id}/class-assignments")
+def update_teacher_class_assignments(
+    teacher_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role("admin"))
+):
+    teacher = db.query(models.Teacher).filter(models.Teacher.id == teacher_id).first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Учитель не найден")
+
+    raw_ids = data.get("class_ids", [])
+    if not isinstance(raw_ids, list):
+        raise HTTPException(status_code=400, detail="class_ids должен быть списком")
+    class_ids = sorted({int(x) for x in raw_ids if str(x).strip()})
+    if class_ids:
+        valid_count = db.query(models.Class).filter(models.Class.id.in_(class_ids)).count()
+        if valid_count != len(class_ids):
+            raise HTTPException(status_code=400, detail="Некоторые классы не найдены")
+
+    db.query(models.TeacherAssignment).filter(
+        models.TeacherAssignment.teacher_id == teacher.id
+    ).delete(synchronize_session=False)
+
+    for class_id in class_ids:
+        db.add(models.TeacherAssignment(
+            teacher_id=teacher.id,
+            class_id=class_id,
+            subject_id=teacher.subject_id,
+            academic_year_id=None
+        ))
+    db.commit()
+    return {"msg": "Нагрузка учителя обновлена", "class_ids": class_ids}

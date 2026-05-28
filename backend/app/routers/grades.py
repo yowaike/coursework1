@@ -72,6 +72,7 @@ def _grade_to_dict(grade: models.Grade) -> dict:
         "subject_id": grade.subject_id,
         "subject_name": grade.subject.name if grade.subject else None,
         "teacher_id": grade.teacher_id,
+        "teacher_name": grade.teacher.user.full_name if grade.teacher and grade.teacher.user else None,
         "grade_type": grade.grade_type,
         "grade_value": grade.grade_value,
         "work_type": grade.work_type,
@@ -113,6 +114,7 @@ async def get_grades(
     grades = query.options(
         joinedload(models.Grade.student).joinedload(models.Student.user),
         joinedload(models.Grade.subject),
+        joinedload(models.Grade.teacher).joinedload(models.Teacher.user),
     ).all()
     return [_grade_to_dict(grade) for grade in grades]
 
