@@ -24,7 +24,11 @@ def init_db():
         email="admin@school.ru",
         full_name="Воронцова Елена Сергеевна",
         hashed_password=auth.get_password_hash("admin123"),
-        role="admin"
+        role="admin",
+        school="Школа №1",
+        city="Москва",
+        academic_year="2024/2025",
+        position="Завуч"
     )
     db.add(admin)
     db.commit()
@@ -56,7 +60,11 @@ def init_db():
             email=t["email"],
             full_name=t["name"],
             hashed_password=auth.get_password_hash("teacher123"),
-            role="teacher"
+            role="teacher",
+            school="Школа №1",
+            city="Москва",
+            academic_year="2024/2025",
+            position="Учитель"
         )
         db.add(user)
         db.commit()
@@ -96,7 +104,11 @@ def init_db():
             email=s["email"],
             full_name=s["name"],
             hashed_password=auth.get_password_hash("student123"),
-            role="student"
+            role="student",
+            school="Школа №1",
+            city="Москва",
+            academic_year="2024/2025",
+            position="Ученик"
         )
         db.add(user)
         db.commit()

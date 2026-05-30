@@ -24,7 +24,6 @@ def _check_class_capacity(db: Session, class_id: int, exclude_student_id: int | 
         )
 
 
-# функция для получения списка учеников (только завуч)
 @router.get("/")
 def get_students(
     db: Session = Depends(get_db),
@@ -48,7 +47,7 @@ def get_students(
         })
     return result
 
-# функция для получения списка учеников текущего пользователя
+
 @router.get("/my")
 async def get_my_students(
     db: Session = Depends(get_db),
@@ -72,6 +71,16 @@ async def get_my_students(
             joinedload(models.Student.user),
             joinedload(models.Student.class_group)
         ).filter(models.Student.class_id.in_(class_ids)).all()
+        
+        # Дедупликация по email пользователя (решает проблему дублей с разными user_id)
+        seen_emails = set()
+        unique_students = []
+        for s in students:
+            email = s.user.email if s.user else None
+            if email and email not in seen_emails:
+                seen_emails.add(email)
+                unique_students.append(s)
+        students = unique_students
     elif user["role"] == "student":
         student = db.query(models.Student).join(models.User).filter(models.User.email == user["email"]).first()
         if not student:
@@ -93,7 +102,7 @@ async def get_my_students(
         })
     return result
 
-# функция для получения профиля текущего ученика
+
 @router.get("/me")
 async def get_my_student_profile(
     request: Request,
@@ -120,7 +129,7 @@ async def get_my_student_profile(
         "class_name": student.class_group.name if student.class_group else None
     }
 
-# функция для добавления ученика (только завуч)
+
 @router.post("/")
 def create_student(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
     email = data.get("email")
@@ -130,7 +139,6 @@ def create_student(data: dict, db: Session = Depends(get_db), current_user: dict
     if existing:
         raise HTTPException(status_code=400, detail="Email уже используется")
 
-    # Создаём пользователя и запись ученика атомарно
     try:
         user = models.User(
             full_name=data.get("full_name", "Новый ученик"),
@@ -156,7 +164,7 @@ def create_student(data: dict, db: Session = Depends(get_db), current_user: dict
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-# функция для удаления ученика (только завуч)
+
 @router.delete("/{student_id}")
 def delete_student(student_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
     student = db.query(models.Student).filter(models.Student.id == student_id).first()
@@ -166,15 +174,14 @@ def delete_student(student_id: int, db: Session = Depends(get_db), current_user:
     before = {"student_id": student.id, "user_id": student.user_id, "class_id": student.class_id}
     
     try:
-        # удаляем связанные оценки и заметки
+        # удаляем связанные данные ученика
         db.query(models.Grade).filter(models.Grade.student_id == student.id).delete()
+        db.query(models.FinalGrade).filter(models.FinalGrade.student_id == student.id).delete()
         db.query(models.Note).filter(models.Note.student_id == student.id).delete()
-        # сохраняем user_id перед удалением
         user_id = student.user_id
         db.delete(student)
         db.flush()
 
-        # удаляем пользователя, если он есть и роль student
         user = db.query(models.User).filter(models.User.id == user_id).first()
         if user and user.role == 'student':
             db.delete(user)
@@ -193,15 +200,12 @@ def delete_student(student_id: int, db: Session = Depends(get_db), current_user:
 def sync_student_accounts(db: Session = Depends(get_db)):
     """Синхронизирует записи: если у Student нет связанного User — создаёт его; если есть User со ролью student без Student — создаёт запись Student."""
     created = []
-    # 1) для студентов без user_id (или с несуществующим пользователем) — создаём User
     students = db.query(models.Student).all()
     for s in students:
         user = db.query(models.User).filter(models.User.id == s.user_id).first()
         if not user:
-            # создаём учётку с placeholder email
             base_email = (s.user.full_name.replace(' ', '').lower() if getattr(s, 'user', None) and s.user and s.user.full_name else f'student{s.id}')
             email = f"{base_email}@school.local"
-            # гарантируем уникальность
             i = 1
             while db.query(models.User).filter(models.User.email == email).first():
                 email = f"{base_email}{i}@school.local"; i += 1
@@ -210,12 +214,10 @@ def sync_student_accounts(db: Session = Depends(get_db)):
             s.user_id = new_user.id
             created.append({'student_id': s.id, 'email': email})
 
-    # 2) для пользователей с ролью student без записи Student — создаём Student
     student_users = db.query(models.User).filter(models.User.role == 'student').all()
     for u in student_users:
         st = db.query(models.Student).filter(models.Student.user_id == u.id).first()
         if not st:
-            # привяжем к первому классу, если есть
             cls = db.query(models.Class).first()
             class_id = cls.id if cls else 1
             new_student = models.Student(user_id=u.id, class_id=class_id)
@@ -225,7 +227,7 @@ def sync_student_accounts(db: Session = Depends(get_db)):
     db.commit()
     return {"created": created}
 
-# функция для обновления ученика (только завуч)
+
 @router.put("/{student_id}")
 def update_student(
     student_id: int,
@@ -233,7 +235,6 @@ def update_student(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_role("admin"))
 ):
-    # функция для поиска ученика с данными пользователя и класса
     student = db.query(models.Student).options(
         joinedload(models.Student.user),
         joinedload(models.Student.class_group)
@@ -251,7 +252,6 @@ def update_student(
         "class_id": student.class_id,
     }
     
-    # функция для валидации уникальности email
     if data.email and data.email != student.user.email:
         existing = db.query(models.User).filter(
             models.User.email == data.email,
@@ -261,20 +261,16 @@ def update_student(
             raise HTTPException(status_code=400, detail="Email уже используется")
         student.user.email = data.email
     
-    # функция для обновления ФИО
     if data.full_name:
         student.user.full_name = data.full_name
     
-    # функция для обновления пароля (только если передан новый)
     if data.password and data.password.strip():
         student.user.hashed_password = get_password_hash(data.password)
     
-    # функция для обновления класса
     if data.class_id is not None:
         _check_class_capacity(db, data.class_id, exclude_student_id=student.id)
         student.class_id = data.class_id
     
-    # функция для сохранения изменений в БД
     try:
         db.commit()
         db.refresh(student)

@@ -3,9 +3,6 @@ from sqlalchemy.orm import relationship
 from .database import Base
 from datetime import datetime
 
-# модели таблиц базы данных
-
-# типы оценок и виды работ (валидация в роутерах)
 GRADE_TYPE_CURRENT = "current"
 GRADE_TYPE_QUARTER = "quarter"
 WORK_TYPES_TEACHER = ("КР", "ДЗ", "ОТВ", "СР", "ТЕСТ")
@@ -18,7 +15,6 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False)
-    # Дополнительные профильные поля
     school = Column(String(255), nullable=True)
     city = Column(String(100), nullable=True)
     academic_year = Column(String(50), nullable=True)
@@ -130,7 +126,6 @@ class Event(Base):
 
     subject = relationship("Subject", back_populates="events")
 
-
 class AcademicYear(Base):
     __tablename__ = "academic_years"
     id = Column(Integer, primary_key=True, index=True)
@@ -142,16 +137,14 @@ class AcademicYear(Base):
     schedule_items = relationship("Schedule", back_populates="academic_year")
     final_grades = relationship("FinalGrade", back_populates="academic_year")
 
-
 class Term(Base):
     __tablename__ = "terms"
     id = Column(Integer, primary_key=True, index=True)
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
-    term_no = Column(Integer, nullable=False)  # 1..4
+    term_no = Column(Integer, nullable=False)
     name = Column(String(50), nullable=False)
 
     academic_year = relationship("AcademicYear", back_populates="terms")
-
 
 class TeacherAssignment(Base):
     __tablename__ = "teacher_assignments"
@@ -165,7 +158,6 @@ class TeacherAssignment(Base):
     class_group = relationship("Class")
     subject = relationship("Subject")
     academic_year = relationship("AcademicYear")
-
 
 class FinalGrade(Base):
     __tablename__ = "final_grades"
@@ -184,7 +176,6 @@ class FinalGrade(Base):
     academic_year = relationship("AcademicYear", back_populates="final_grades")
     override_by_user = relationship("User")
 
-
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True, index=True)
@@ -197,15 +188,3 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     actor = relationship("User")
-
-
-class Notification(Base):
-    __tablename__ = "notifications"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    type = Column(String(50), nullable=False)
-    payload_json = Column(Text, nullable=True)
-    is_read = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    user = relationship("User")

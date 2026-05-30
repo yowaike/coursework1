@@ -1,33 +1,21 @@
-// кабинет ученика: дневник с личными оценками и заметками
+// StudentCabinet.jsx — с возможностью просмотра всех оценок по предмету
 const StudentCabinet = () => {
-    // функция для хранения оценок
     const [grades, setGrades] = React.useState([])
-    // функция для хранения заметок
     const [notes, setNotes] = React.useState([])
-    // функция для хранения расписания
     const [schedule, setSchedule] = React.useState([])
-    // функция для хранения профиля ученика
     const [student, setStudent] = React.useState(null)
-    // функция для хранения списка предметов
     const [subjects, setSubjects] = React.useState([])
     const [finalGrades, setFinalGrades] = React.useState([])
-    // функция для хранения текста новой заметки
     const [noteText, setNoteText] = React.useState('')
-    // функция для управления загрузкой
     const [loading, setLoading] = React.useState(true)
-    // функция для хранения ошибки
     const [error, setError] = React.useState('')
+    const [selectedSubject, setSelectedSubject] = React.useState(null)
+    const [modalOpen, setModalOpen] = React.useState(false)
 
-    // функция для загрузки данных при монтировании
     React.useEffect(() => {
         loadData()
-        const id = setInterval(() => {
-            loadData()
-        }, 7000)
-        return () => clearInterval(id)
     }, [])
 
-    // функция для загрузки всех данных
     const loadData = () => {
         setLoading(true)
         setError('')
@@ -44,7 +32,6 @@ const StudentCabinet = () => {
                 ]).then(([gradesData, finalGradesData, notesData, scheduleData, subjectsData]) => {
                     setGrades(gradesData)
                     setFinalGrades(finalGradesData || [])
-                    // фильтруем заметки — только для этого ученика
                     setNotes(notesData.filter(n => n.student_id === studentData.id))
                     setSchedule(scheduleData)
                     setSubjects(subjectsData)
@@ -57,7 +44,6 @@ const StudentCabinet = () => {
             })
     }
 
-    // функция для добавления заметки
     const handleAddNote = async (e) => {
         e.preventDefault()
         if (!student || !noteText.trim()) return
@@ -73,24 +59,23 @@ const StudentCabinet = () => {
                 })
             })
             setNoteText('')
-            // обновляем заметки
             const updated = await fetch('/api/notes', { credentials: 'include' }).then(r => r.json())
             setNotes(updated.filter(n => n.student_id === student.id))
-        } catch (err) {
-            // тихо игнорируем
-        }
+        } catch (err) { }
     }
 
-    // функция для отображения загрузки
-    if (loading) return React.createElement('div', { className: 'spinner' })
+    const openSubjectModal = (subjectId, subjectName) => {
+        const subjectGrades = grades.filter(g => g.subject_id === subjectId).sort((a, b) => new Date(b.date) - new Date(a.date))
+        setSelectedSubject({ id: subjectId, name: subjectName, grades: subjectGrades })
+        setModalOpen(true)
+    }
 
-    // функция для отображения ошибки
+    if (loading) return React.createElement('div', { className: 'spinner' })
     if (error) return React.createElement('div', { className: 'glass-card', style: { textAlign: 'center', padding: '40px' } },
         React.createElement('p', { style: { color: '#D32F2F', marginBottom: '20px' } }, error),
         React.createElement('button', { className: 'btn', onClick: loadData }, 'Повторить загрузку')
     )
 
-    // маппинг ID предметов в названия
     const subjectNames = subjects.reduce((map, subject) => {
         map[subject.id] = subject.name
         return map
@@ -101,27 +86,38 @@ const StudentCabinet = () => {
         return acc
     }, {})
 
-    // группировка оценок по предметам
-    const gradesBySubject = {}
+    // Группировка всех оценок по предметам
+    const allGradesBySubject = {}
     grades.forEach(g => {
-        if (!gradesBySubject[g.subject_id]) {
-            gradesBySubject[g.subject_id] = []
-        }
-        gradesBySubject[g.subject_id].push(g)
+        if (!allGradesBySubject[g.subject_id]) allGradesBySubject[g.subject_id] = []
+        allGradesBySubject[g.subject_id].push(g)
     })
 
-    const currentGradesBySubject = {}
-    grades.forEach(g => {
-        if (g.grade_type !== 'current') return
-        if (!currentGradesBySubject[g.subject_id]) currentGradesBySubject[g.subject_id] = []
-        currentGradesBySubject[g.subject_id].push(g)
+    // Для отображения в карточке – последние 3 оценки (превью)
+    const previewGradesBySubject = {}
+    Object.keys(allGradesBySubject).forEach(subjId => {
+        const sorted = [...allGradesBySubject[subjId]].sort((a, b) => new Date(b.date) - new Date(a.date))
+        previewGradesBySubject[subjId] = sorted.slice(0, 3)
     })
 
-    const allGrades = grades.map(g => g.grade_value).filter(val => typeof val === 'number')
-    const overallAverage = allGrades.length > 0 ? (allGrades.reduce((sum, value) => sum + value, 0) / allGrades.length).toFixed(2) : '—'
+    const overallAverage = (() => {
+        const allVals = grades.map(g => g.grade_value).filter(v => typeof v === 'number')
+        return allVals.length ? (allVals.reduce((a, b) => a + b, 0) / allVals.length).toFixed(2) : '—'
+    })()
+
+    // Группировка расписания по дням недели
+    const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота']
+    const scheduleByDay = {}
+    schedule.forEach(item => {
+        const dayIndex = item.day_of_week - 1
+        if (!scheduleByDay[dayIndex]) scheduleByDay[dayIndex] = []
+        scheduleByDay[dayIndex].push(item)
+    })
+    for (let day in scheduleByDay) {
+        scheduleByDay[day].sort((a, b) => a.start_time.localeCompare(b.start_time))
+    }
 
     return React.createElement('div', null,
-        // заголовок с информацией об ученике
         React.createElement('div', { className: 'page-header' },
             React.createElement('div', null,
                 React.createElement('h1', { className: 'page-title' }, 'Мой дневник'),
@@ -132,41 +128,43 @@ const StudentCabinet = () => {
         ),
 
         React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '24px' } },
+            // Левая колонка: оценки и табель
             React.createElement('div', null,
-                // текущие оценки
                 React.createElement('div', { className: 'glass-card', style: { marginBottom: '24px' } },
                     React.createElement('h3', { className: 'panel-title' }, 'Текущие оценки'),
-                    Object.keys(currentGradesBySubject).length > 0
+                    Object.keys(previewGradesBySubject).length > 0
                         ? React.createElement('div', { style: { display: 'grid', gap: '14px' } },
-                            Object.entries(currentGradesBySubject).map(([subjectId, list]) => {
-                                const sorted = [...list].sort((a, b) => new Date(b.date) - new Date(a.date))
-                                const last = sorted[0]
+                            Object.entries(previewGradesBySubject).map(([subjectId, previewList]) => {
+                                const fullList = allGradesBySubject[subjectId] || []
+                                const last = fullList[0]
                                 return React.createElement('div', {
                                     key: subjectId,
-                                    style: { padding: '12px 14px', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'var(--bg-card)' }
+                                    style: { padding: '12px 14px', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'var(--bg-card)', cursor: 'pointer' },
+                                    onClick: () => openSubjectModal(Number(subjectId), subjectNames[subjectId])
                                 },
-                                    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' } },
+                                    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '8px' } },
                                         React.createElement('div', null,
                                             React.createElement('div', { style: { fontWeight: 600 } }, subjectNames[subjectId] || `ID ${subjectId}`),
                                             last && React.createElement('div', { style: { fontSize: '12px', color: 'var(--text-secondary)' } }, `${last.date} · ${last.work_type}`)
                                         ),
                                         last && React.createElement('span', { className: `grade-badge grade-${last.grade_value}` }, last.grade_value)
                                     ),
-                                    React.createElement('div', { style: { marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' } },
-                                        sorted.slice(0, 8).map((g, idx) =>
-                                            React.createElement('span', { key: idx, className: `grade-badge grade-${g.grade_value}`, title: `${g.date} · ${g.work_type}`, style: { width: 30, height: 30, fontSize: 13 } }, g.grade_value)
-                                        )
-                                    )
+                                    React.createElement('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' } },
+                                        previewList.map((g, idx) =>
+                                            React.createElement('span', { key: idx, className: `grade-badge grade-${g.grade_value}`, style: { width: 30, height: 30, fontSize: 13, cursor: 'pointer' } }, g.grade_value)
+                                        ),
+                                        fullList.length > 3 && React.createElement('span', { style: { fontSize: '12px', color: 'var(--text-secondary)', alignSelf: 'center' } }, `+ ещё ${fullList.length - 3}`)
+                                    ),
+                                    React.createElement('div', { style: { marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' } }, 'Нажмите, чтобы увидеть все оценки')
                                 )
                             })
                         )
-                        : React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '20px 0' } }, 'Текущих оценок пока нет')
+                        : React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '20px 0' } }, 'Оценок пока нет')
                 ),
 
-                // табель успеваемости
                 React.createElement('div', { className: 'glass-card' },
                     React.createElement('h3', { className: 'panel-title' }, 'Табель успеваемости'),
-                    Object.keys(gradesBySubject).length > 0 ?
+                    Object.keys(allGradesBySubject).length > 0 ?
                         React.createElement('table', null,
                             React.createElement('thead', null,
                                 React.createElement('tr', null,
@@ -179,19 +177,14 @@ const StudentCabinet = () => {
                                 )
                             ),
                             React.createElement('tbody', null,
-                                Object.entries(gradesBySubject).map(([subjectId, subjectGrades]) => {
-                                    // собираем четвертные оценки
+                                Object.entries(allGradesBySubject).map(([subjectId, subjectGrades]) => {
                                     const quarterGrades = {}
                                     subjectGrades.forEach(g => {
-                                        if (g.grade_type === 'quarter') {
-                                            quarterGrades[g.quarter] = g.grade_value
-                                        }
+                                        if (g.grade_type === 'quarter') quarterGrades[g.quarter] = g.grade_value
                                     })
-                                    // считаем годовую
                                     const fg = finalBySubject[Number(subjectId)]
                                     const yearly = fg?.value ?? '—'
-
-                                    return React.createElement('tr', { key: subjectId },
+                                    return React.createElement('tr', { key: subjectId, onClick: () => openSubjectModal(Number(subjectId), subjectNames[subjectId]), style: { cursor: 'pointer' } },
                                         React.createElement('td', { style: { fontWeight: 500 } }, subjectNames[subjectId] || `ID ${subjectId}`),
                                         [1, 2, 3, 4].map(q =>
                                             React.createElement('td', { key: q, style: { textAlign: 'center' } },
@@ -209,22 +202,33 @@ const StudentCabinet = () => {
                 )
             ),
 
+            // Правая колонка: расписание (красивая сетка) + заметки
             React.createElement('div', null,
                 React.createElement('div', { className: 'glass-card', style: { marginBottom: '24px' } },
                     React.createElement('h3', { className: 'panel-title' }, 'Расписание'),
-                    schedule.length > 0 ?
-                        React.createElement('div', { style: { display: 'grid', gap: '0' } },
-                            schedule.map(item => React.createElement('div', { key: item.id, className: 'lesson-item' },
-                                React.createElement('div', { className: 'lesson-item__time' }, item.start_time),
-                                React.createElement('div', { className: 'lesson-item__body' },
-                                    React.createElement('div', { className: 'lesson-item__subject' }, item.subject_name || item.subject_id),
-                                    React.createElement('div', { className: 'lesson-item__meta' },
-                                        `${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][item.day_of_week - 1] || item.day_of_week}${item.room ? ' · каб. ' + item.room : ''}`
-                                    )
+                    schedule.length === 0 ?
+                        React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '30px 0' } }, 'Расписание пока не доступно') :
+                        React.createElement('div', { className: 'schedule-grid' },
+                            days.map((dayName, idx) => {
+                                const lessons = scheduleByDay[idx] || []
+                                return React.createElement('div', { key: idx, className: 'schedule-day' },
+                                    React.createElement('div', { className: 'schedule-day__title' }, dayName),
+                                    lessons.length === 0 ?
+                                        React.createElement('div', { className: 'schedule-day__empty' }, 'Нет уроков') :
+                                        lessons.map(lesson =>
+                                            React.createElement('div', { key: lesson.id, className: 'lesson-item' },
+                                                React.createElement('div', { className: 'lesson-item__time' }, lesson.start_time),
+                                                React.createElement('div', { className: 'lesson-item__body' },
+                                                    React.createElement('div', { className: 'lesson-item__subject' }, lesson.subject_name || subjectNames[lesson.subject_id] || '—'),
+                                                    React.createElement('div', { className: 'lesson-item__meta' },
+                                                        lesson.room ? `каб. ${lesson.room}` : ''
+                                                    )
+                                                )
+                                            )
+                                        )
                                 )
-                            ))
-                        ) :
-                        React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '30px 0' } }, 'Расписание пока не доступно')
+                            })
+                        )
                 ),
 
                 React.createElement('div', { className: 'glass-card' },
@@ -237,19 +241,8 @@ const StudentCabinet = () => {
                         React.createElement('button', { className: 'btn btn--compact btn--ghost', onClick: loadData, style: { alignSelf: 'end' } }, 'Обновить')
                     ),
                     React.createElement('form', { onSubmit: handleAddNote, style: { marginBottom: '20px' } },
-                        React.createElement('textarea', {
-                            className: 'input',
-                            rows: 4,
-                            placeholder: 'Добавить заметку...',
-                            value: noteText,
-                            onChange: e => setNoteText(e.target.value)
-                        }),
-                        React.createElement('button', {
-                            className: 'btn btn--compact',
-                            type: 'submit',
-                            disabled: !noteText.trim(),
-                            style: { width: '100%' }
-                        }, 'Сохранить')
+                        React.createElement('textarea', { className: 'input', rows: 4, placeholder: 'Добавить заметку...', value: noteText, onChange: e => setNoteText(e.target.value) }),
+                        React.createElement('button', { className: 'btn btn--compact', type: 'submit', disabled: !noteText.trim(), style: { width: '100%' } }, 'Сохранить')
                     ),
                     notes.length > 0 ?
                         React.createElement('div', { className: 'note-list' },
@@ -257,8 +250,57 @@ const StudentCabinet = () => {
                                 React.createElement('span', { className: 'note-card__date', style: { display: 'block', marginBottom: '8px' } }, note.date),
                                 React.createElement('p', { className: 'note-card__text', style: { marginBottom: 0 } }, note.text)
                             ))
+                        ) :
+                        React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '20px 0' } }, 'Заметок пока нет')
+                )
+            )
+        ),
+
+        // Модальное окно со всеми оценками по предмету
+        modalOpen && selectedSubject && React.createElement('div', {
+            style: {
+                position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000
+            },
+            onClick: () => setModalOpen(false)
+        },
+            React.createElement('div', {
+                className: 'glass-card',
+                style: { width: '90%', maxWidth: '700px', maxHeight: '80vh', overflow: 'auto', padding: '28px' },
+                onClick: e => e.stopPropagation()
+            },
+                React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' } },
+                    React.createElement('h2', { style: { margin: 0 } }, selectedSubject.name),
+                    React.createElement('button', { className: 'btn btn--ghost', onClick: () => setModalOpen(false) }, '✕')
+                ),
+                React.createElement('div', { className: 'table-wrap' },
+                    React.createElement('table', null,
+                        React.createElement('thead', null,
+                            React.createElement('tr', null,
+                                React.createElement('th', null, 'Дата'),
+                                React.createElement('th', null, 'Оценка'),
+                                React.createElement('th', null, 'Вид работы'),
+                                React.createElement('th', null, 'Четверть'),
+                                React.createElement('th', null, 'Учитель')
+                            )
+                        ),
+                        React.createElement('tbody', null,
+                            selectedSubject.grades.length > 0 ?
+                                selectedSubject.grades.map((g, idx) =>
+                                    React.createElement('tr', { key: idx },
+                                        React.createElement('td', null, g.date),
+                                        React.createElement('td', null, React.createElement('span', { className: `grade-badge grade-${g.grade_value}` }, g.grade_value)),
+                                        React.createElement('td', null, g.work_type),
+                                        React.createElement('td', null, g.quarter),
+                                        React.createElement('td', null, g.teacher_name || '—')
+                                    )
+                                ) :
+                                React.createElement('tr', null,
+                                    React.createElement('td', { colSpan: 5, style: { textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' } }, 'Нет оценок по этому предмету')
+                                )
                         )
-                        : React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '20px 0' } }, 'Заметок пока нет')
+                    )
                 )
             )
         )

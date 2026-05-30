@@ -20,7 +20,6 @@ def _teacher_class_ids(db: Session, teacher_id: int) -> list[int]:
     ).distinct().all()]
     return schedule_ids
 
-# функция для получения списка учителей (только завуч)
 @router.get("/")
 def get_teachers(
     db: Session = Depends(get_db),
@@ -49,7 +48,6 @@ def get_teachers(
         })
     return result
 
-# функция для получения профиля текущего учителя
 @router.get("/me")
 async def get_my_teacher_profile(
     request: Request,
@@ -77,10 +75,8 @@ async def get_my_teacher_profile(
         "room_number": teacher.room_number
     }
 
-# функция для создания учителя (только завуч)
 @router.post("/")
 def create_teacher(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
-    # проверяем уникальность email
     email = data.get("email")
     if not email:
         raise HTTPException(status_code=400, detail="Email обязателен")
@@ -106,12 +102,12 @@ def create_teacher(data: dict, db: Session = Depends(get_db), current_user: dict
     db.add(teacher)
     db.commit()
     db.refresh(teacher)
-    log_audit(db, actor_user_id=db.query(models.User).filter(models.User.email == current_user["email"]).first().id, action="create", entity_type="teacher", entity_id=teacher.id, before=None, after={"teacher_id": teacher.id, "user_id": user.id, "subject_id": teacher.subject_id})
-    db.commit()
-    
+    actor = db.query(models.User).filter(models.User.email == current_user["email"]).first()
+    if actor:
+        log_audit(db, actor_user_id=actor.id, action="create", entity_type="teacher", entity_id=teacher.id, before=None, after={"teacher_id": teacher.id, "user_id": user.id, "subject_id": teacher.subject_id})
+        db.commit()
     return {"id": teacher.id, "msg": "Учитель создан"}
 
-# функция для удаления учителя (только завуч)
 @router.delete("/{teacher_id}")
 def delete_teacher(teacher_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
     teacher = db.query(models.Teacher).filter(models.Teacher.id == teacher_id).first()
@@ -120,15 +116,20 @@ def delete_teacher(teacher_id: int, db: Session = Depends(get_db), current_user:
     actor = db.query(models.User).filter(models.User.email == current_user["email"]).first()
     before = {"teacher_id": teacher.id, "user_id": teacher.user_id, "subject_id": teacher.subject_id}
     
-    # удаляем связанные оценки
+    # 1. Удаляем нагрузку (TeacherAssignment)
+    db.query(models.TeacherAssignment).filter(models.TeacherAssignment.teacher_id == teacher.id).delete()
+    # 2. Удаляем оценки учителя
     db.query(models.Grade).filter(models.Grade.teacher_id == teacher.id).delete()
-    # удаляем связанное расписание
+    # 3. Удаляем расписание учителя
     db.query(models.Schedule).filter(models.Schedule.teacher_id == teacher.id).delete()
-    # удаляем учителя
+    # 4. Если учитель переопределял годовые оценки – снимаем привязку
+    db.query(models.FinalGrade).filter(models.FinalGrade.override_by_user_id == teacher.user_id).update({"override_by_user_id": None})
+    
+    # Удаляем учителя
     db.delete(teacher)
     db.commit()
     
-    # удаляем пользователя
+    # Удаляем пользователя
     user = db.query(models.User).filter(models.User.id == teacher.user_id).first()
     if user:
         db.delete(user)
@@ -140,7 +141,6 @@ def delete_teacher(teacher_id: int, db: Session = Depends(get_db), current_user:
 
     return {"msg": "Учитель удалён"}
 
-# функция для обновления учителя (только завуч)
 @router.put("/{teacher_id}")
 def update_teacher(
     teacher_id: int,
@@ -148,12 +148,10 @@ def update_teacher(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_role("admin"))
 ):
-    # функция для поиска учителя с данными пользователя и предмета
     teacher = db.query(models.Teacher).options(
         joinedload(models.Teacher.user),
         joinedload(models.Teacher.subject)
     ).filter(models.Teacher.id == teacher_id).first()
-    
     if not teacher:
         raise HTTPException(status_code=404, detail="Учитель не найден")
     
@@ -167,7 +165,6 @@ def update_teacher(
         "room_number": teacher.room_number,
     }
 
-    # функция для валидации уникальности email
     if data.email and data.email != teacher.user.email:
         existing = db.query(models.User).filter(
             models.User.email == data.email,
@@ -177,23 +174,18 @@ def update_teacher(
             raise HTTPException(status_code=400, detail="Email уже используется")
         teacher.user.email = data.email
     
-    # функция для обновления ФИО
     if data.full_name:
         teacher.user.full_name = data.full_name
     
-    # функция для обновления пароля
     if data.password and data.password.strip():
         teacher.user.hashed_password = get_password_hash(data.password)
     
-    # функция для обновления предмета
     if data.subject_id is not None:
         teacher.subject_id = data.subject_id
     
-    # функция для обновления кабинета
     if data.room_number is not None:
         teacher.room_number = data.room_number
     
-    # функция для сохранения изменений
     try:
         db.commit()
         db.refresh(teacher)
@@ -219,7 +211,6 @@ def update_teacher(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Ошибка сохранения: {str(e)}")
-
 
 @router.put("/{teacher_id}/class-assignments")
 def update_teacher_class_assignments(

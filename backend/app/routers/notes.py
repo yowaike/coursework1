@@ -84,6 +84,8 @@ async def get_notes(
             return []
         query = query.filter(models.Note.student_id == student.id)
     elif user["role"] == "admin":
+        # Админ видит заметки, которые создали учителя или он сам (не ученики)
+        query = query.filter(models.Note.author.has(models.User.role != "student"))
         if student_id:
             query = query.filter(models.Note.student_id == student_id)
     elif user["role"] == "teacher":
@@ -93,7 +95,11 @@ async def get_notes(
         allowed_ids = _teacher_student_ids(db, teacher.id)
         if not allowed_ids:
             return []
-        query = query.filter(models.Note.student_id.in_(allowed_ids))
+        # Учитель видит только заметки, созданные учителями или админом (не учениками)
+        query = query.filter(
+            models.Note.student_id.in_(allowed_ids),
+            models.Note.author.has(models.User.role != "student")
+        )
         if student_id:
             if student_id not in allowed_ids:
                 raise HTTPException(status_code=403, detail="Нет доступа к этому ученику")

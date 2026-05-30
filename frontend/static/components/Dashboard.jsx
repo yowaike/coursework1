@@ -15,7 +15,6 @@ const Dashboard = () => {
     const [editSubject, setEditSubject] = React.useState('')
     const [infoEditing, setInfoEditing] = React.useState(false)
     const infoBackup = React.useRef({})
-    const [unreadCount, setUnreadCount] = React.useState(0)
 
     React.useEffect(() => {
         fetch('/api/auth/me', { credentials: 'include' })
@@ -34,19 +33,6 @@ const Dashboard = () => {
             })
             .catch(() => { setLoading(false); window.location.href = '/' })
     }, [])
-
-    React.useEffect(() => {
-        if (!userRole) return
-        const loadUnread = () => {
-            fetch('/api/notifications/my', { credentials: 'include' })
-                .then(r => r.ok ? r.json() : [])
-                .then(items => setUnreadCount((items || []).filter(x => !x.is_read).length))
-                .catch(() => {})
-        }
-        loadUnread()
-        const t = setInterval(loadUnread, 7000)
-        return () => clearInterval(t)
-    }, [userRole])
 
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
@@ -84,7 +70,7 @@ const Dashboard = () => {
     const handleChangeYear = (value) => { setEditYear(value); debounceSave('year', value, { academic_year: value }) }
     const handleChangePosition = (value) => { setEditPosition(value); debounceSave('position', value, { position: value }) }
 
-    const allMenuItems = [
+    const menuItems = [
         { id: 'profile', label: 'Профиль', roles: ['admin', 'teacher', 'student'] },
         { id: 'classes', label: 'Классы', roles: ['admin'] },
         { id: 'subjects', label: 'Предметы', roles: ['admin'] },
@@ -94,22 +80,14 @@ const Dashboard = () => {
         { id: 'grades', label: 'Оценки', roles: ['admin', 'teacher'] },
         { id: 'analytics', label: 'Аналитика', roles: ['admin'] },
         { id: 'notes', label: 'Заметки', roles: ['admin', 'teacher', 'student'] },
-        { id: 'notifications', label: 'Уведомления', roles: ['admin', 'teacher', 'student'] },
         { id: 'audit', label: 'Аудит', roles: ['admin'] },
         { id: 'teacher_cab', label: 'Мой кабинет', roles: ['teacher'] },
         { id: 'student_cab', label: 'Мой дневник', roles: ['student'] }
-    ]
+    ].filter(item => userRole && item.roles.includes(userRole))
 
-    const menuItems = allMenuItems
-        .filter(item => userRole && item.roles.includes(userRole))
-        .map(item => item.id === 'notifications'
-            ? { ...item, label: unreadCount > 0 ? `Уведомления (${unreadCount})` : 'Уведомления' }
-            : item
-        )
     const roleLabels = { admin: 'Завуч', teacher: 'Учитель', student: 'Ученик' }
     const profilePositionLabel = (editPosition || '').trim() || roleLabels[userRole] || userRole
 
-    // Профиль
     const renderProfile = () => {
         return React.createElement('div', null,
             React.createElement('h1', { style: { fontSize: '36px', marginBottom: '24px' } }, 'ПРОФИЛЬ'),
@@ -130,21 +108,22 @@ const Dashboard = () => {
                             React.createElement('h2', { style: { fontSize: '22px', marginBottom: '8px' } }, userName),
                             React.createElement('div', { style: { display: 'inline-block', padding: '4px 16px', borderRadius: '20px', background: 'var(--accent-color)', color: '#FFF', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' } }, profilePositionLabel),
                             React.createElement('div', null,
-                                React.createElement('button', { className: 'btn', onClick: () => { setEditName(userName); setEditing(true) }, style: { background: 'var(--bg-sidebar)', color: 'var(--text-primary)', fontSize: '12px', padding: '8px 16px' } }, 'Редактировать')
+                                userRole === 'admin' && React.createElement('button', { className: 'btn', onClick: () => { setEditName(userName); setEditing(true) }, style: { background: 'var(--bg-sidebar)', color: 'var(--text-primary)', fontSize: '12px', padding: '8px 16px' } }, 'Редактировать')
                             )
                         ),
                     React.createElement('p', { style: { color: 'var(--text-secondary)', fontSize: '14px', marginTop: '12px' } }, userEmail)
                 ),
                 React.createElement('div', { className: 'glass-card', style: { padding: '24px', position: 'relative' } },
                     React.createElement('h3', { style: { marginTop: 0, marginBottom: '16px', fontSize: '18px' } }, 'Информация'),
-                    (userRole === 'admin' || userRole === 'teacher') && !infoEditing ?
+                    userRole === 'admin' && !infoEditing ?
                         React.createElement('button', { className: 'btn', onClick: () => { infoBackup.current = { editSchool, editCity, editYear, editPosition }; setInfoEditing(true) }, style: { position: 'absolute', right: '16px', top: '16px', fontSize: '12px', padding: '6px 10px' } }, 'Редактировать')
                         : null,
-                    (userRole === 'admin' || userRole === 'teacher') && infoEditing ?
+                    userRole === 'admin' && infoEditing ?
                         React.createElement('div', { style: { position: 'absolute', right: '12px', top: '12px', display: 'flex', gap: '8px' } },
                             React.createElement('button', { className: 'btn', onClick: async () => { await handleSaveProfile({ school: editSchool, city: editCity, academic_year: editYear, position: editPosition }); setInfoEditing(false) }, style: { fontSize: '12px', padding: '6px 10px' } }, 'Сохр.'),
                             React.createElement('button', { className: 'btn', onClick: () => { setEditSchool(infoBackup.current.editSchool); setEditCity(infoBackup.current.editCity); setEditYear(infoBackup.current.editYear); setEditPosition(infoBackup.current.editPosition); setInfoEditing(false) }, style: { background: 'var(--bg-sidebar)', color: 'var(--text-primary)', fontSize: '12px', padding: '6px 10px' } }, 'Отм.')
-                        ) : null,
+                        )
+                        : null,
                     React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
                         React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' } },
                             React.createElement('span', { style: { color: 'var(--text-secondary)', fontSize: '13px' } }, 'Школа'),
@@ -170,16 +149,17 @@ const Dashboard = () => {
                                 ? React.createElement('input', { className: 'input', value: editPosition, onChange: e => handleChangePosition(e.target.value), style: { width: '60%', textAlign: 'right' } })
                                 : React.createElement('span', { style: { padding: '8px 14px', borderRadius: '10px', background: 'var(--bg-sidebar)', fontSize: '14px', fontWeight: 500 } }, editPosition || '—')
                         ),
-                        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+                        userRole === 'teacher' && React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between' } },
                             React.createElement('span', { style: { color: 'var(--text-secondary)', fontSize: '13px' } }, 'Предмет'),
-                            React.createElement('span', { style: { fontWeight: 500, fontSize: '13px' } }, editSubject || '-'))
+                            React.createElement('span', { style: { fontWeight: 500, fontSize: '13px' } }, editSubject || '-')
+                        )
                     )
                 )
             )
         )
     }
 
-    // Список учеников
+    // Список учеников (без изменений, но без автообновления)
     const StudentsListView = () => {
         const [students, setStudents] = React.useState([])
         const [classes, setClasses] = React.useState([])
@@ -270,9 +250,9 @@ const Dashboard = () => {
                         classes.map(c => React.createElement('option', { key: c.id, value: c.id }, c.name))
                     ),
                     React.createElement('div', { style: { gridColumn: '1 / -1', display: 'flex', gap: '10px', justifyContent: 'flex-end' } },
-    React.createElement('button', { className: 'btn btn--ghost', type: 'button', onClick: () => setShowAdd(false) }, 'Отмена'),
-    React.createElement('button', { className: 'btn btn--compact', type: 'submit' }, 'Добавить')
-)
+                        React.createElement('button', { className: 'btn btn--ghost', type: 'button', onClick: () => setShowAdd(false) }, 'Отмена'),
+                        React.createElement('button', { className: 'btn btn--compact', type: 'submit' }, 'Добавить')
+                    )
                 )
             ),
             editingStudent && React.createElement('div', { className: 'glass-card', style: { marginBottom: '20px' } },
@@ -285,9 +265,9 @@ const Dashboard = () => {
                         classes.map(c => React.createElement('option', { key: c.id, value: c.id }, c.name))
                     ),
                     React.createElement('div', { style: { gridColumn: '1 / -1', display: 'flex', gap: '10px', justifyContent: 'flex-end' } },
-    React.createElement('button', { className: 'btn btn--ghost', type: 'button', onClick: () => setEditingStudent(null) }, 'Отмена'),
-    React.createElement('button', { className: 'btn btn--compact', type: 'submit' }, 'Сохранить')
-)
+                        React.createElement('button', { className: 'btn btn--ghost', type: 'button', onClick: () => setEditingStudent(null) }, 'Отмена'),
+                        React.createElement('button', { className: 'btn btn--compact', type: 'submit' }, 'Сохранить')
+                    )
                 )
             ),
             React.createElement('div', { className: 'glass-card table-wrap' },
@@ -327,7 +307,7 @@ const Dashboard = () => {
         )
     }
 
-    // Заметки
+    // Заметки (без автообновления)
     const NotesListView = () => {
         const [notes, setNotes] = React.useState([])
         const [loading, setLoading] = React.useState(true)
@@ -337,8 +317,8 @@ const Dashboard = () => {
         const [message, setMessage] = React.useState('')
         const [editingNote, setEditingNote] = React.useState(null)
 
-        const loadNotes = (silent = false) => {
-            if (!silent) setLoading(true)
+        const loadNotes = () => {
+            setLoading(true)
             Promise.all([
                 fetch('/api/notes', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
                 fetch('/api/students/my', { credentials: 'include' }).then(r => r.ok ? r.json() : [])
@@ -349,16 +329,12 @@ const Dashboard = () => {
                 if (userRole === 'student' && list.length > 0) {
                     setStudentId(String(list[0].id))
                 }
-                if (!silent) setLoading(false)
-            }).catch(() => { if (!silent) setLoading(false) })
+                setLoading(false)
+            }).catch(() => setLoading(false))
         }
 
         React.useEffect(() => {
             loadNotes()
-            const id = setInterval(() => {
-                loadNotes(true)
-            }, 7000)
-            return () => clearInterval(id)
         }, [])
 
         const canManageNote = (note) => note.can_edit || userRole === 'admin'
@@ -488,7 +464,7 @@ const Dashboard = () => {
         )
     }
 
-    // Аудит (admin)
+    // Аудит (без изменений)
     const AuditLogView = () => {
         const [rows, setRows] = React.useState([])
         const [loading, setLoading] = React.useState(true)
@@ -536,56 +512,6 @@ const Dashboard = () => {
         )
     }
 
-    const NotificationsView = () => {
-        const [items, setItems] = React.useState([])
-        const [loading, setLoading] = React.useState(true)
-
-        const load = () => {
-            setLoading(true)
-            fetch('/api/notifications/my', { credentials: 'include' })
-                .then(r => r.ok ? r.json() : [])
-                .then(data => { setItems(data || []); setLoading(false) })
-                .catch(() => setLoading(false))
-        }
-
-        const markRead = async (id) => {
-            await fetch(`/api/notifications/${id}/read`, { method: 'POST', credentials: 'include' })
-            load()
-        }
-
-        React.useEffect(() => {
-            load()
-            const t = setInterval(load, 7000)
-            return () => clearInterval(t)
-        }, [])
-
-        if (loading) return React.createElement('div', { className: 'spinner' })
-
-        return React.createElement('div', null,
-            React.createElement('div', { className: 'page-header', style: { marginBottom: '20px' } },
-                React.createElement('div', null,
-                    React.createElement('h1', { className: 'page-title' }, 'Уведомления'),
-                    React.createElement('p', { className: 'page-subtitle' }, `${items.filter(x => !x.is_read).length} новых`)
-                ),
-                React.createElement('button', { className: 'btn btn--compact btn--ghost', onClick: load }, 'Обновить')
-            ),
-            items.length > 0
-                ? React.createElement('div', { className: 'note-list' },
-                    items.map(n => React.createElement('article', { key: n.id, className: 'note-card', style: { opacity: n.is_read ? 0.65 : 1 } },
-                        React.createElement('div', { className: 'note-card__head' },
-                            React.createElement('div', null,
-                                React.createElement('div', { className: 'note-card__student' }, n.type),
-                                React.createElement('div', { className: 'note-card__author' }, n.created_at ? n.created_at.replace('T', ' ').slice(0, 19) : '')
-                            ),
-                            !n.is_read && React.createElement('button', { className: 'btn btn--sm btn--ghost', onClick: () => markRead(n.id) }, 'Прочитано')
-                        ),
-                        n.payload_json && React.createElement('p', { className: 'note-card__text' }, n.payload_json)
-                    ))
-                )
-                : React.createElement('p', { style: { textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' } }, 'Уведомлений пока нет')
-        )
-    }
-
     const renderContent = () => {
         if (loading) return React.createElement('div', { className: 'spinner' })
         if (activeTab === 'profile') return renderProfile()
@@ -599,24 +525,19 @@ const Dashboard = () => {
         if (activeTab === 'classes' && typeof ClassList !== 'undefined') return React.createElement(ClassList)
         if (activeTab === 'subjects' && typeof SubjectList !== 'undefined') return React.createElement(SubjectList)
         if (activeTab === 'notes') return React.createElement(NotesListView)
-        if (activeTab === 'notifications') return React.createElement(NotificationsView)
         if (activeTab === 'audit') return React.createElement(AuditLogView)
         return renderProfile()
     }
 
-    // ====== ИТОГОВЫЙ РЕНДЕР ======
     return React.createElement('div', { style: { display: 'flex', minHeight: '100vh', background: 'var(--bg-main)' } },
-        // Боковая панель
         React.createElement('div', {
             style: { width: '260px', background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', padding: '24px 16px 80px 16px', position: 'fixed', height: '100vh', left: 0, top: 0, zIndex: 1000 }
         },
-            // Аватарка и имя
             React.createElement('div', { style: { textAlign: 'center', marginBottom: '24px' } },
                 React.createElement('div', { style: { width: '48px', height: '48px', borderRadius: '50%', background: 'var(--accent-color)', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 700, margin: '0 auto 8px' } }, userName.charAt(0)),
                 React.createElement('div', { style: { fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '2px' } }, userName),
                 React.createElement('div', { style: { fontSize: '11px', color: 'var(--text-secondary)' } }, roleLabels[userRole] || userRole)
             ),
-            // Пункты меню
             React.createElement('div', { style: { flex: 1, overflowY: 'auto' } },
                 menuItems.map(item =>
                     React.createElement('div', {
@@ -625,7 +546,6 @@ const Dashboard = () => {
                     }, item.label)
                 )
             ),
-            // Кнопка Выйти
             React.createElement('div', {
                 onClick: handleLogout,
                 style: {
@@ -641,7 +561,6 @@ const Dashboard = () => {
                 onMouseLeave: (e) => { e.currentTarget.style.color = 'var(--text-secondary)' }
             }, 'Выйти')
         ),
-        // Основной контент
         React.createElement('div', { style: { flex: 1, padding: '40px', marginLeft: '260px', overflowY: 'auto', minHeight: '100vh' } }, renderContent())
     )
 }

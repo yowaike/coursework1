@@ -11,23 +11,23 @@ const TeacherList = () => {
     const [confirmModal, setConfirmModal] = React.useState({ isOpen: false, id: null, name: '' })
 
     React.useEffect(() => {
-        Promise.all([
-            fetch('/api/teachers', { credentials: 'include' }).then(r => r.json()),
-            fetch('/api/subjects', { credentials: 'include' }).then(r => r.json()),
-            fetch('/api/classes', { credentials: 'include' }).then(r => r.json())
-        ]).then(([teachersData, subjectsData, classesData]) => {
-            setTeachers(teachersData)
-            setSubjects(subjectsData)
-            setClasses(classesData)
-            if (subjectsData.length > 0) {
-                setFormData(prev => ({ ...prev, subject_id: subjectsData[0].id }))
-            }
-            setLoading(false)
-        }).catch(err => {
-            setError(err.message)
-            setLoading(false)
-        })
-    }, [])
+    Promise.all([
+        fetch('/api/teachers', { credentials: 'include' }).then(r => r.json()),
+        fetch('/api/subjects', { credentials: 'include' }).then(r => r.json()),
+        fetch('/api/classes', { credentials: 'include' }).then(r => r.json())
+    ]).then(([teachersData, subjectsData, classesData]) => {
+        setTeachers(teachersData)
+        setSubjects(subjectsData)
+        setClasses(classesData)
+        if (subjectsData.length > 0) {
+            setFormData(prev => ({ ...prev, subject_id: subjectsData[0].id }))
+        }
+        setLoading(false)
+    }).catch(err => {
+        setError(err.message)
+        setLoading(false)
+    })
+}, [])
 
     const handleAdd = async (e) => {
         e.preventDefault()

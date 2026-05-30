@@ -106,19 +106,6 @@ const GradeBook = () => {
             .catch(() => setLoading(false))
     }, [])
 
-    React.useEffect(() => {
-        if (!userRole) return
-        const id = setInterval(async () => {
-            try {
-                const updated = await fetch('/api/grades', { credentials: 'include' }).then(r => r.ok ? r.json() : [])
-                setGrades(updated)
-            } catch {
-                // ignore polling errors
-            }
-        }, 7000)
-        return () => clearInterval(id)
-    }, [userRole])
-
     const selectedStudentRecord = React.useMemo(
         () => studentsData.find(s => String(s.id) === String(gradeForm.student_id)),
         [studentsData, gradeForm.student_id]
@@ -198,34 +185,38 @@ const GradeBook = () => {
     }
 
     const saveEditedGrade = async () => {
-        if (!editingGradeId) return
-        setGradeMessage('')
-        try {
-            const payload = {
-                grade_value: Number(editGradeForm.grade_value),
-                quarter: Number(editGradeForm.quarter),
-                date: editGradeForm.date
-            }
-            if (userRole !== 'admin') payload.work_type = editGradeForm.work_type
-            const res = await fetch(`/api/grades/${editingGradeId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify(payload)
-            })
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}))
-                setGradeMessage(err.detail || 'Ошибка при обновлении оценки')
-                return
-            }
-            setEditingGradeId(null)
-            setGradeMessage('Оценка обновлена')
-            const updated = await fetch('/api/grades', { credentials: 'include' }).then(r => r.ok ? r.json() : [])
-            setGrades(updated)
-        } catch {
-            setGradeMessage('Ошибка соединения')
+    if (!editingGradeId) return
+    setGradeMessage('')
+    try {
+        const payload = {}
+        if (editGradeForm.grade_value !== undefined && editGradeForm.grade_value !== null) 
+            payload.grade_value = Number(editGradeForm.grade_value)
+        if (editGradeForm.quarter !== undefined && editGradeForm.quarter !== null) 
+            payload.quarter = Number(editGradeForm.quarter)
+        if (editGradeForm.date) 
+            payload.date = editGradeForm.date
+        if (userRole !== 'admin' && editGradeForm.work_type) 
+            payload.work_type = editGradeForm.work_type
+
+        const res = await fetch(`/api/grades/${editingGradeId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        })
+        if (!res.ok) {
+            let errorText = await res.text()
+            throw new Error(errorText || 'Ошибка при обновлении')
         }
+        setEditingGradeId(null)
+        setGradeMessage('Оценка обновлена')
+        const updated = await fetch('/api/grades', { credentials: 'include' }).then(r => r.ok ? r.json() : [])
+        setGrades(updated)
+    } catch (err) {
+        console.error(err)
+        setGradeMessage('Ошибка: ' + err.message)
     }
+}
 
     if (loading) return React.createElement('div', { className: 'spinner' })
 

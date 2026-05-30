@@ -7,41 +7,27 @@ from app.database import engine, Base
 from app.routers import auth, students, teachers, classes, subjects, grades, schedule, analytics, notes, assignments
 from app.routers import final_grades
 from app.routers import audit_logs
-from app.routers import notifications
+# from app.routers import notifications   # удалено
 
 app = FastAPI(title="Электронный дневничок")
-
 
 @app.on_event("startup")
 def on_startup():
     from app.migrate import migrate_schema
     from app.database import SessionLocal
-    from app.seed import seed_demo_data
     Base.metadata.create_all(bind=engine)
     migrate_schema()
+    # seed больше не нужен
     db = SessionLocal()
-    try:
-        seed_demo_data(db)
-    finally:
-        db.close()
+    db.close()
 
-# настройка путей
-# main.py лежит в backend/app/main.py, поэтому:
-# родитель main.py = backend/app
-# родитель app = backend
-# родитель backend = coursework1 (корень)
-BACKEND_DIR = Path(__file__).resolve().parent.parent  # backend/
-ROOT_DIR = BACKEND_DIR.parent  # coursework1/
-
-# Монтируем статику
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = BACKEND_DIR.parent
 static_dir = ROOT_DIR / "frontend" / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-
-# Шаблоны
 templates_dir = BACKEND_DIR / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
 
-# Подключение роутеров
 app.include_router(auth.router, prefix="/api/auth", tags=["авторизация"])
 app.include_router(students.router, prefix="/api/students", tags=["ученики"])
 app.include_router(teachers.router, prefix="/api/teachers", tags=["учителя"])
@@ -54,14 +40,12 @@ app.include_router(notes.router, prefix="/api/notes", tags=["заметки"])
 app.include_router(assignments.router, prefix="/api/assignments", tags=["нагрузка"])
 app.include_router(final_grades.router, prefix="/api/final-grades", tags=["итоговые оценки"])
 app.include_router(audit_logs.router, prefix="/api/audit-logs", tags=["аудит"])
-app.include_router(notifications.router, prefix="/api/notifications", tags=["уведомления"])
+# app.include_router(notifications.router, prefix="/api/notifications", tags=["уведомления"])  # удалено
 
-# Главная страница
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-# Дашборд
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})

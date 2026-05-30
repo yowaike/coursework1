@@ -18,11 +18,9 @@ class UpdateProfileRequest(BaseModel):
     city: Optional[str] = None
     academic_year: Optional[str] = None
     position: Optional[str] = None
-    # teacher-specific
     subject_id: Optional[int] = None
     room_number: Optional[str] = None
 
-# функция для входа пользователя
 @router.post("/login")
 def login(
     request: Request,
@@ -32,22 +30,19 @@ def login(
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
     if not user or not auth_utils.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Неверный email или пароль")
-
     token = auth_utils.create_access_token(data={"sub": user.email, "role": user.role})
-
     response = JSONResponse(content={"msg": "вход выполнен", "role": user.role})
     response.set_cookie(
-    key="access_token",
-    value=token,
-    httponly=True,
-    max_age=1800,
-    samesite="lax",  # ← замени на "None" если нужно
-    secure=False,    # ← оставь False для localhost
-    path="/"
-)
+        key="access_token",
+        value=token,
+        httponly=True,
+        max_age=1800,
+        samesite="lax",
+        secure=False,
+        path="/"
+    )
     return response
 
-# функция для получения текущего пользователя
 @router.get("/me")
 def get_me(request: Request, db: Session = Depends(get_db)):
     token = request.cookies.get("access_token")
@@ -60,14 +55,12 @@ def get_me(request: Request, db: Session = Depends(get_db)):
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
         result = {"email": user.email, "role": user.role, "full_name": user.full_name}
-        # include profile fields if present
         result.update({
             "school": user.school,
             "city": user.city,
             "academic_year": user.academic_year,
             "position": user.position
         })
-        # если учитель — попытаемся вернуть данные учителя
         if user.role == 'teacher':
             teacher = db.query(models.Teacher).filter(models.Teacher.user_id == user.id).first()
             if teacher:
@@ -81,7 +74,6 @@ def get_me(request: Request, db: Session = Depends(get_db)):
     except Exception:
         raise HTTPException(status_code=401, detail="Токен истёк или невалиден")
 
-# функция для обновления профиля
 @router.put("/update-profile")
 async def update_profile(
     data: UpdateProfileRequest,
@@ -93,34 +85,50 @@ async def update_profile(
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-    updated = False
-    if data.full_name is not None:
-        user.full_name = data.full_name; updated = True
-    if data.school is not None:
-        user.school = data.school; updated = True
-    if data.city is not None:
-        user.city = data.city; updated = True
-    if data.academic_year is not None:
-        user.academic_year = data.academic_year; updated = True
-    if data.position is not None:
-        user.position = data.position; updated = True
+    # Только завуч может редактировать глобальные поля
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Только завуч может редактировать профиль")
 
-    # если учитель — обновим запись в teachers
-    if user.role == 'teacher' and (data.subject_id is not None or data.room_number is not None):
-        teacher = db.query(models.Teacher).filter(models.Teacher.user_id == user.id).first()
-        if teacher:
-            if data.subject_id is not None:
-                teacher.subject_id = data.subject_id; updated = True
-            if data.room_number is not None:
-                teacher.room_number = data.room_number; updated = True
+    # Логируем входящие данные (для отладки)
+    print(f"Received data: {data.dict()}")
 
-    if updated:
+    # Глобальные поля: обновляем у ВСЕХ пользователей
+    updates = {}
+    if data.school is not None and data.school.strip():
+        updates["school"] = data.school
+    if data.city is not None and data.city.strip():
+        updates["city"] = data.city
+    if data.academic_year is not None and data.academic_year.strip():
+        updates["academic_year"] = data.academic_year
+
+    if updates:
+        # Используем SQLAlchemy core update для обхода любых проблем с ORM
+        from sqlalchemy import update
+        stmt = update(models.User).values(**updates)
+        db.execute(stmt)
         db.commit()
-        db.refresh(user)
+        print(f"Updated {stmt} with {updates}")
 
-    return {"msg": "Профиль обновлён", "full_name": user.full_name, "school": user.school, "city": user.city, "academic_year": user.academic_year, "position": user.position}
+    # Личные поля завуча (имя и должность)
+    if data.full_name is not None and data.full_name.strip():
+        user.full_name = data.full_name
+    if data.position is not None and data.position.strip():
+        user.position = data.position
 
-# функция для выхода
+    # Коммитим личные изменения
+    db.commit()
+    db.refresh(user)
+
+    # Возвращаем актуальные данные завуча
+    return {
+        "msg": "Профиль обновлён",
+        "full_name": user.full_name,
+        "school": user.school,
+        "city": user.city,
+        "academic_year": user.academic_year,
+        "position": user.position
+    }
+
 @router.post("/logout")
 def logout():
     response = JSONResponse(content={"msg": "выход выполнен"})
