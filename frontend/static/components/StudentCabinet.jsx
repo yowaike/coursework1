@@ -1,4 +1,4 @@
-// StudentCabinet.jsx — с возможностью просмотра всех оценок по предмету
+// StudentCabinet.jsx 
 const StudentCabinet = () => {
     const [grades, setGrades] = React.useState([])
     const [notes, setNotes] = React.useState([])
@@ -86,14 +86,12 @@ const StudentCabinet = () => {
         return acc
     }, {})
 
-    // Группировка всех оценок по предметам
     const allGradesBySubject = {}
     grades.forEach(g => {
         if (!allGradesBySubject[g.subject_id]) allGradesBySubject[g.subject_id] = []
         allGradesBySubject[g.subject_id].push(g)
     })
 
-    // Для отображения в карточке – последние 3 оценки (превью)
     const previewGradesBySubject = {}
     Object.keys(allGradesBySubject).forEach(subjId => {
         const sorted = [...allGradesBySubject[subjId]].sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -105,7 +103,6 @@ const StudentCabinet = () => {
         return allVals.length ? (allVals.reduce((a, b) => a + b, 0) / allVals.length).toFixed(2) : '—'
     })()
 
-    // Группировка расписания по дням недели
     const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота']
     const scheduleByDay = {}
     schedule.forEach(item => {
@@ -146,8 +143,7 @@ const StudentCabinet = () => {
                                         React.createElement('div', null,
                                             React.createElement('div', { style: { fontWeight: 600 } }, subjectNames[subjectId] || `ID ${subjectId}`),
                                             last && React.createElement('div', { style: { fontSize: '12px', color: 'var(--text-secondary)' } }, `${last.date} · ${last.work_type}`)
-                                        ),
-                                        last && React.createElement('span', { className: `grade-badge grade-${last.grade_value}` }, last.grade_value)
+                                        )
                                     ),
                                     React.createElement('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' } },
                                         previewList.map((g, idx) =>
@@ -202,7 +198,7 @@ const StudentCabinet = () => {
                 )
             ),
 
-            // Правая колонка: расписание (красивая сетка) + заметки
+            // Правая колонка: расписание + заметки
             React.createElement('div', null,
                 React.createElement('div', { className: 'glass-card', style: { marginBottom: '24px' } },
                     React.createElement('h3', { className: 'panel-title' }, 'Расписание'),
@@ -232,7 +228,6 @@ const StudentCabinet = () => {
                 ),
 
                 React.createElement('div', { className: 'glass-card' },
-                    React.createElement('h3', { className: 'panel-title' }, 'Заметки'),
                     React.createElement('div', { className: 'item-card__stats', style: { marginBottom: '16px', paddingTop: 0, borderTop: 'none' } },
                         React.createElement('div', { className: 'item-card__stat' },
                             React.createElement('span', { className: 'item-card__stat-value' }, overallAverage),
@@ -240,23 +235,36 @@ const StudentCabinet = () => {
                         ),
                         React.createElement('button', { className: 'btn btn--compact btn--ghost', onClick: loadData, style: { alignSelf: 'end' } }, 'Обновить')
                     ),
+                    React.createElement('h4', { style: { margin: '16px 0 8px 0', fontSize: '16px' } }, 'Личные заметки'),
                     React.createElement('form', { onSubmit: handleAddNote, style: { marginBottom: '20px' } },
-                        React.createElement('textarea', { className: 'input', rows: 4, placeholder: 'Добавить заметку...', value: noteText, onChange: e => setNoteText(e.target.value) }),
+                        React.createElement('textarea', { className: 'input', rows: 4, placeholder: 'Добавить личную заметку...', value: noteText, onChange: e => setNoteText(e.target.value) }),
                         React.createElement('button', { className: 'btn btn--compact', type: 'submit', disabled: !noteText.trim(), style: { width: '100%' } }, 'Сохранить')
                     ),
-                    notes.length > 0 ?
+                    notes.filter(n => n.author_role === 'student').length > 0 ?
                         React.createElement('div', { className: 'note-list' },
-                            notes.map(note => React.createElement('article', { key: note.id, className: 'note-card' },
-                                React.createElement('span', { className: 'note-card__date', style: { display: 'block', marginBottom: '8px' } }, note.date),
-                                React.createElement('p', { className: 'note-card__text', style: { marginBottom: 0 } }, note.text)
-                            ))
+                            notes.filter(n => n.author_role === 'student').map(note =>
+                                React.createElement('article', { key: note.id, className: 'note-card' },
+                                    React.createElement('span', { className: 'note-card__date', style: { display: 'block', marginBottom: '8px' } }, note.date),
+                                    React.createElement('p', { className: 'note-card__text', style: { marginBottom: 0 } }, note.text)
+                                )
+                            )
                         ) :
-                        React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '20px 0' } }, 'Заметок пока нет')
+                        React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '20px 0' } }, 'Личных заметок пока нет'),
+                    React.createElement('h4', { style: { margin: '16px 0 8px 0', fontSize: '16px' } }, 'Заметки от учителя / завуча'),
+                    notes.filter(n => n.author_role !== 'student').length > 0 ?
+                        React.createElement('div', { className: 'note-list' },
+                            notes.filter(n => n.author_role !== 'student').map(note =>
+                                React.createElement('article', { key: note.id, className: 'note-card' },
+                                    React.createElement('span', { className: 'note-card__date', style: { display: 'block', marginBottom: '8px' } }, note.date),
+                                    React.createElement('p', { className: 'note-card__text', style: { marginBottom: 0 } }, note.text)
+                                )
+                            )
+                        ) :
+                        React.createElement('p', { style: { color: 'var(--text-secondary)', textAlign: 'center', padding: '20px 0' } }, 'Нет заметок от учителя или завуча')
                 )
             )
         ),
 
-        // Модальное окно со всеми оценками по предмету
         modalOpen && selectedSubject && React.createElement('div', {
             style: {
                 position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',

@@ -19,7 +19,6 @@ def init_db():
         print("База данных уже содержит данные. Пропускаем инициализацию.")
         return
 
-    # ========== 1 ЗАВУЧ ==========
     admin = models.User(
         email="admin@school.ru",
         full_name="Воронцова Елена Сергеевна",
@@ -33,7 +32,6 @@ def init_db():
     db.add(admin)
     db.commit()
 
-    # ========== 4 ПРЕДМЕТА ==========
     subjects_data = [
         {"name": "Математика", "description": "Алгебра и геометрия"},
         {"name": "Русский язык", "description": "Русский язык и литература"},
@@ -47,7 +45,6 @@ def init_db():
         subjects.append(subj)
     db.commit()
 
-    # ========== 4 УЧИТЕЛЯ ==========
     teachers_data = [
         {"email": "petrova@school.ru", "name": "Петрова Анна Владимировна", "subject_idx": 0, "room": "301"},
         {"email": "sidorov@school.ru", "name": "Сидоров Игорь Николаевич", "subject_idx": 1, "room": "205"},
@@ -77,7 +74,6 @@ def init_db():
         db.commit()
         teachers.append(teacher)
 
-    # ========== 4 КЛАССА ==========
     classes_data = [
         {"name": "9А", "year": 2024, "max_students": 30, "lessons_per_week": 34},
         {"name": "9Б", "year": 2024, "max_students": 28, "lessons_per_week": 32},
@@ -91,7 +87,6 @@ def init_db():
         classes.append(cls)
     db.commit()
 
-    # ========== 4 УЧЕНИКА ==========
     students_data = [
         {"email": "ivanov@school.ru", "name": "Иванов Артём Александрович", "class_idx": 0},
         {"email": "petrova_s@school.ru", "name": "Петрова Мария Сергеевна", "class_idx": 1},
@@ -120,13 +115,12 @@ def init_db():
         db.commit()
         students.append(student)
 
-    # ========== ОЦЕНКИ ==========
     random.seed(42)
     def get_month(q):
         return {1: 10, 2: 12, 3: 3, 4: 5}[q]
 
     for student in students:
-        for subj in subjects[:2]:  # каждый ученик имеет оценки по 2 предметам
+        for subj in subjects[:2]: 
             teacher = next((t for t in teachers if t.subject_id == subj.id), teachers[0])
             for quarter in [1, 2, 3, 4]:
                 month = get_month(quarter)
@@ -155,7 +149,6 @@ def init_db():
                 db.add(q_grade)
     db.commit()
 
-    # ========== РАСПИСАНИЕ ==========
     for cls in classes:
         for day in [1, 3]:
             subj = subjects[(cls.id + day) % len(subjects)]
@@ -170,7 +163,6 @@ def init_db():
             ))
     db.commit()
 
-    # ========== ЗАМЕТКИ ==========
     notes_data = [
         {"student_id": students[0].id, "author_id": admin.id, "text": "Подготовиться к контрольной по математике", "date": date(2024, 10, 5)},
         {"student_id": students[0].id, "author_id": students[0].user_id, "text": "Сдать домашнее задание по русскому до пятницы", "date": date(2024, 10, 12)},
@@ -183,9 +175,7 @@ def init_db():
 
     db.close()
 
-    print("=" * 50)
     print("  ТЕСТОВЫЕ АККАУНТЫ")
-    print("=" * 50)
     print("  Завуч:")
     print("    admin@school.ru / admin123")
     print("\n  Учителя:")
@@ -194,7 +184,6 @@ def init_db():
     print("\n  Ученики:")
     for s in students_data:
         print(f"    {s['email']} / student123  ({s['name']})")
-    print("=" * 50)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--migrate":

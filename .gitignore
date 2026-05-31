@@ -1,35 +1,82 @@
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 *.so
 .Python
-venv/
 env/
-*.egg-info/
-dist/
-build/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+*.pyc
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
+# FastAPI / Uvicorn
+.DS_Store
+*.log
 
 # Environment variables
 .env
 .env.local
+.env.*.local
 
 # Database
 *.db
+*.sqlite
 *.sqlite3
 
-# Logs
-*.log
+# PostgreSQL local files
+*.pgsql
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
 
 # OS
-.DS_Store
 Thumbs.db
+.DS_Store
 
-# Frontend
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Backend specific
+backend/__pycache__/
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+
+# Frontend specific (если есть node_modules)
 node_modules/
-frontend/static/dist/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# Secrets / keys
+*.key
+*.pem
+*.crt
+
+# Backups
+*.sql
+*.dump
+
+# MyPy cache
+.mypy_cache/
+.dmypy.json
+dmypy.json

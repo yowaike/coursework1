@@ -92,7 +92,7 @@ async def update_profile(
     # Логируем входящие данные (для отладки)
     print(f"Received data: {data.dict()}")
 
-    # Глобальные поля: обновляем у ВСЕХ пользователей
+    # Глобальные поля: обновляем у всех пользователей
     updates = {}
     if data.school is not None and data.school.strip():
         updates["school"] = data.school
@@ -102,7 +102,6 @@ async def update_profile(
         updates["academic_year"] = data.academic_year
 
     if updates:
-        # Используем SQLAlchemy core update для обхода любых проблем с ORM
         from sqlalchemy import update
         stmt = update(models.User).values(**updates)
         db.execute(stmt)

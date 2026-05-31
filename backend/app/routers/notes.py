@@ -19,7 +19,6 @@ def _get_teacher(db: Session, email: str) -> models.Teacher | None:
 
 
 def _teacher_student_ids(db: Session, teacher_id: int) -> set[int]:
-    # primary: assignments (нагрузка)
     class_ids = {
         row[0]
         for row in db.query(models.TeacherAssignment.class_id)
@@ -27,7 +26,6 @@ def _teacher_student_ids(db: Session, teacher_id: int) -> set[int]:
         .distinct()
         .all()
     }
-    # fallback: расписание
     if not class_ids:
         class_ids = {
             row[0]
@@ -84,7 +82,6 @@ async def get_notes(
             return []
         query = query.filter(models.Note.student_id == student.id)
     elif user["role"] == "admin":
-        # Админ видит заметки, которые создали учителя или он сам (не ученики)
         query = query.filter(models.Note.author.has(models.User.role != "student"))
         if student_id:
             query = query.filter(models.Note.student_id == student_id)
@@ -95,7 +92,6 @@ async def get_notes(
         allowed_ids = _teacher_student_ids(db, teacher.id)
         if not allowed_ids:
             return []
-        # Учитель видит только заметки, созданные учителями или админом (не учениками)
         query = query.filter(
             models.Note.student_id.in_(allowed_ids),
             models.Note.author.has(models.User.role != "student")
@@ -187,7 +183,8 @@ async def update_note(
         raise HTTPException(status_code=404, detail="Заметка не найдена")
 
     if user["role"] == "admin":
-        pass
+        if note.author_id != db_user.id:
+            raise HTTPException(status_code=403, detail="Завуч может редактировать только свои заметки")
     elif note.author_id != db_user.id:
         raise HTTPException(status_code=403, detail="Можно редактировать только свои заметки")
     elif user["role"] == "teacher":

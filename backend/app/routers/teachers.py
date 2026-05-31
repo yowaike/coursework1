@@ -83,12 +83,20 @@ def create_teacher(data: dict, db: Session = Depends(get_db), current_user: dict
     existing = db.query(models.User).filter(models.User.email == email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email уже используется")
+        # Получить данные завуча (текущего пользователя)
+    admin_user = db.query(models.User).filter(models.User.email == current_user["email"]).first()
+    if not admin_user:
+        raise HTTPException(status_code=404, detail="Завуч не найден")
     
     user = models.User(
         email=email,
         full_name=data.get("full_name", "Новый учитель"),
         hashed_password=get_password_hash(data.get("password", "teacher123")),
-        role="teacher"
+        role="teacher",
+        school=admin_user.school,
+        city=admin_user.city,
+        academic_year=admin_user.academic_year,
+        position="Учитель"
     )
     db.add(user)
     db.commit()

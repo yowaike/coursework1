@@ -1,4 +1,4 @@
-// компонент расписания в виде сетки по дням недели как в школьных дневниках
+// компонент расписания
 const ScheduleList = () => {
     const [schedule, setSchedule] = React.useState([])
     const [classes, setClasses] = React.useState([])

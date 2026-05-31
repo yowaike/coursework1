@@ -159,7 +159,7 @@ const Dashboard = () => {
         )
     }
 
-    // Список учеников (без изменений, но без автообновления)
+    // Список учеников
     const StudentsListView = () => {
         const [students, setStudents] = React.useState([])
         const [classes, setClasses] = React.useState([])
@@ -307,7 +307,7 @@ const Dashboard = () => {
         )
     }
 
-    // Заметки (без автообновления)
+    // Заметки
     const NotesListView = () => {
         const [notes, setNotes] = React.useState([])
         const [loading, setLoading] = React.useState(true)
@@ -464,7 +464,7 @@ const Dashboard = () => {
         )
     }
 
-    // Аудит (без изменений)
+    // Аудит
     const AuditLogView = () => {
         const [rows, setRows] = React.useState([])
         const [loading, setLoading] = React.useState(true)

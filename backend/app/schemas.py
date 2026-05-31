@@ -106,8 +106,8 @@ class NoteUpdate(BaseModel):
 
 class GradeCreate(BaseModel):
     student_id: int
-    subject_id: Optional[int] = None  # опционально — для учителя подставится автоматически
-    teacher_id: Optional[int] = None  # опционально — для учителя подставится автоматически
+    subject_id: Optional[int] = None  
+    teacher_id: Optional[int] = None  
     grade_type: str
     grade_value: int
     work_type: str

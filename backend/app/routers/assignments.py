@@ -50,7 +50,6 @@ def create_assignment(payload: dict, db: Session = Depends(get_db)):
     if teacher.subject_id != int(subject_id):
         raise HTTPException(status_code=400, detail="Учитель не ведёт выбранный предмет")
 
-    # upsert-like: не плодим дубли
     existing = db.query(models.TeacherAssignment).filter(
         models.TeacherAssignment.teacher_id == int(teacher_id),
         models.TeacherAssignment.class_id == int(class_id),

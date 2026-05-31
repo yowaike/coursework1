@@ -5,7 +5,6 @@ from app.database import SessionLocal
 from app import models
 from app.auth import get_password_hash
 
-# ----- Данные аккаунтов (как в README) -----
 TEST_ACCOUNTS = {
     "admin": {"email": "admin@school.ru", "full_name": "Завуч Демонстрационный", "role": "admin"},
     "teachers": [
@@ -22,8 +21,6 @@ TEST_ACCOUNTS = {
     ]
 }
 
-# ----- Расписание: для каждого класса список уроков -----
-# Дни: 1-Пн, 2-Вт, 3-Ср, 4-Чт, 5-Пт
 SCHEDULE_DATA = {
     "9А": [
         {"day": 1, "time": "08:30", "subject": "Математика", "teacher_email": "petrova@school.ru", "room": "301"},
@@ -61,8 +58,6 @@ SCHEDULE_DATA = {
     ]
 }
 
-# ----- Оценки для каждого ученика (пример для Иванова, добавьте остальных по аналогии) -----
-# Поля: student_email, subject, quarter (1-4), grade_type ("current"/"quarter"), grade_value, work_type, date (YYYY-MM-DD)
 GRADES_DATA = [
     # Иванов Артём (9А) - Математика, 1 четверть
     {"student_email": "ivanov@school.ru", "subject": "Математика", "quarter": 1, "grade_type": "current", "grade_value": 5, "work_type": "ДЗ", "date": "2024-09-15"},
@@ -87,7 +82,6 @@ GRADES_DATA = [
     {"student_email": "ivanov@school.ru", "subject": "Физика", "quarter": 1, "grade_type": "quarter", "grade_value": 4, "work_type": "ЧЕТВ", "date": "2024-10-25"},
 ]
 
-# ------------------------------------------------------------
 def get_or_create_subject(db: Session, name: str) -> models.Subject:
     subj = db.query(models.Subject).filter(models.Subject.name == name).first()
     if not subj:
@@ -120,7 +114,6 @@ def ensure_accounts(db: Session):
         db.commit()
         db.refresh(admin)
 
-    # Учителя
     teacher_objs = []
     for t in TEST_ACCOUNTS["teachers"]:
         user = db.query(models.User).filter(models.User.email == t["email"]).first()
@@ -181,7 +174,6 @@ def ensure_schedule(db: Session, class_map):
             if not teacher:
                 continue
             subject = get_or_create_subject(db, lesson["subject"])
-            # Не создаём дубликаты
             existing = db.query(models.Schedule).filter(
                 models.Schedule.class_id == cls.id,
                 models.Schedule.day_of_week == lesson["day"],
@@ -199,7 +191,6 @@ def ensure_schedule(db: Session, class_map):
                     room=lesson["room"]
                 )
                 db.add(sched)
-            # TeacherAssignment для нагрузки
             assign = db.query(models.TeacherAssignment).filter(
                 models.TeacherAssignment.teacher_id == teacher.id,
                 models.TeacherAssignment.class_id == cls.id,
@@ -225,7 +216,6 @@ def ensure_grades(db: Session):
         teacher = db.query(models.Teacher).filter(models.Teacher.subject_id == subject.id).first()
         if not teacher:
             continue
-        # Проверка существования такой же оценки (чтобы не дублировать)
         existing = db.query(models.Grade).filter(
             models.Grade.student_id == student.id,
             models.Grade.subject_id == subject.id,

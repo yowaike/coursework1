@@ -7,7 +7,6 @@ from app.database import engine, Base
 from app.routers import auth, students, teachers, classes, subjects, grades, schedule, analytics, notes, assignments
 from app.routers import final_grades
 from app.routers import audit_logs
-# from app.routers import notifications   # удалено
 
 app = FastAPI(title="Электронный дневничок")
 
@@ -17,7 +16,6 @@ def on_startup():
     from app.database import SessionLocal
     Base.metadata.create_all(bind=engine)
     migrate_schema()
-    # seed больше не нужен
     db = SessionLocal()
     db.close()
 

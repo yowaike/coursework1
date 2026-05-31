@@ -8,7 +8,6 @@ from ..schemas import ScheduleCreate
 router = APIRouter()
 
 def _sync_assignment_from_schedule(db: Session, item: models.Schedule):
-    # создаём/обновляем назначение (teacher+class+subject) как источник нагрузки
     existing = db.query(models.TeacherAssignment).filter(
         models.TeacherAssignment.teacher_id == item.teacher_id,
         models.TeacherAssignment.class_id == item.class_id,
@@ -23,7 +22,7 @@ def _sync_assignment_from_schedule(db: Session, item: models.Schedule):
             academic_year_id=item.academic_year_id,
         ))
 
-# функция для получения расписания (доступно всем авторизованным)
+# функция для получения расписания
 @router.get("/")
 async def get_schedule(
     class_id: int = None,

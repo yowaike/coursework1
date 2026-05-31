@@ -158,6 +158,17 @@ async def add_grade(
     subject = db.query(models.Subject).filter(models.Subject.id == grade_data["subject_id"]).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Предмет не найден")
+        # Запрет нескольких четвертных оценок за одну четверть
+    if grade_data["grade_type"] == models.GRADE_TYPE_QUARTER:
+        existing_quarter = db.query(models.Grade).filter(
+            models.Grade.student_id == grade_data["student_id"],
+            models.Grade.subject_id == grade_data["subject_id"],
+            models.Grade.quarter == grade_data["quarter"],
+            models.Grade.grade_type == models.GRADE_TYPE_QUARTER,
+            models.Grade.academic_year_id == grade_data.get("academic_year_id")
+        ).first()
+        if existing_quarter:
+            raise HTTPException(status_code=400, detail="Четвертная оценка по этому предмету за данную четверть уже выставлена")
     new_grade = models.Grade(**grade_data)
     db.add(new_grade)
     db.commit()
@@ -167,12 +178,12 @@ async def add_grade(
             recalculate_final_grade(db, new_grade.student_id, new_grade.subject_id, new_grade.academic_year_id)
     return _grade_to_dict(new_grade)
 
-from datetime import date  # убедись, что импорт есть в начале файла
+from datetime import date
 
 @router.put("/{grade_id}")
 async def update_grade(
     grade_id: int,
-    data: dict,  # <-- меняем на dict
+    data: dict,
     db: Session = Depends(get_db),
     user: dict = Depends(require_roles(["admin", "teacher"])),
 ):
@@ -180,7 +191,6 @@ async def update_grade(
     if not grade:
         raise HTTPException(status_code=404, detail="Оценка не найдена")
     
-    # Проверки доступа (оставляем как у тебя)
     if user["role"] == "teacher":
         teacher = _get_teacher(db, user["email"])
         if not teacher:
@@ -190,7 +200,6 @@ async def update_grade(
         if grade.grade_type == models.GRADE_TYPE_QUARTER:
             raise HTTPException(status_code=403, detail="Четвертные оценки может изменять только завуч")
     
-    # Обновляем только переданные поля с преобразованием типов
     if "grade_value" in data:
         grade.grade_value = int(data["grade_value"])
     if "quarter" in data:

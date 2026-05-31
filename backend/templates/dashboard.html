@@ -7,13 +7,10 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- 1. Сначала ExportButton -->
 <script type="text/babel" src="/static/components/ExportButton.jsx"></script>
 
-<!-- 2. Потом все компоненты -->
 <script type="text/babel" src="/static/components/ClassList.jsx"></script>
 <script type="text/babel" src="/static/components/SubjectList.jsx"></script>
-<!-- StudentList.jsx удалён — его код внутри Dashboard.jsx -->
 <script type="text/babel" src="/static/components/TeacherList.jsx"></script>
 <script type="text/babel" src="/static/components/ScheduleList.jsx"></script>
 <script type="text/babel" src="/static/components/GradeBook.jsx"></script>
@@ -21,6 +18,5 @@
 <script type="text/babel" src="/static/components/StudentCabinet.jsx"></script>
 <script type="text/babel" src="/static/components/TeacherCabinet.jsx"></script>
 
-<!-- 3. В конце - Dashboard (использует все компоненты выше) -->
 <script type="text/babel" src="/static/components/Dashboard.jsx"></script>
 {% endblock %}

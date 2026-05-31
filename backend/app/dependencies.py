@@ -3,7 +3,7 @@ from jose import jwt, JWTError
 
 # функция для получения данных пользователя из JWT токена в cookie
 async def get_current_user(request: Request):
-    from .auth import SECRET_KEY, ALGORITHM  # импорт внутри функции
+    from .auth import SECRET_KEY, ALGORITHM 
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Не авторизован")

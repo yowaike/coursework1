@@ -5,7 +5,6 @@ from .database import engine
 def migrate_schema():
     """Добавляет новые колонки в существующую БД (без потери данных)."""
     with engine.begin() as conn:
-        # ===== existing migrations =====
         conn.execute(text(
             "ALTER TABLE classes ADD COLUMN IF NOT EXISTS max_students INTEGER NOT NULL DEFAULT 30"
         ))
@@ -36,7 +35,6 @@ def migrate_schema():
                 "FOREIGN KEY (author_id) REFERENCES users(id)"
             ))
 
-        # ===== new: academic years / terms / assignments / final / audit / notifications =====
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS academic_years (
                 id SERIAL PRIMARY KEY,
@@ -102,17 +100,14 @@ def migrate_schema():
             )
         """))
 
-        # add columns to existing tables
         conn.execute(text("ALTER TABLE grades ADD COLUMN IF NOT EXISTS academic_year_id INTEGER NULL"))
         conn.execute(text("ALTER TABLE schedule ADD COLUMN IF NOT EXISTS academic_year_id INTEGER NULL"))
 
-        # ensure at least one active academic year exists
         active_year = conn.execute(text(
             "SELECT id, name FROM academic_years WHERE is_active = TRUE ORDER BY id LIMIT 1"
         )).fetchone()
 
         if not active_year:
-            # default active year derived from existing user.academic_year or fallback
             year_name = conn.execute(text(
                 "SELECT academic_year FROM users WHERE academic_year IS NOT NULL AND academic_year <> '' ORDER BY id LIMIT 1"
             )).fetchone()
@@ -125,7 +120,6 @@ def migrate_schema():
         else:
             active_year_id = active_year[0]
 
-        # create 4 terms if missing
         existing_terms = conn.execute(text(
             "SELECT COUNT(*) FROM terms WHERE academic_year_id = :y"
         ), {"y": active_year_id}).fetchone()[0]
@@ -135,7 +129,6 @@ def migrate_schema():
                     "INSERT INTO terms(academic_year_id, term_no, name) VALUES (:y, :t, :n)"
                 ), {"y": active_year_id, "t": i, "n": f"{i} четверть"})
 
-        # backfill academic_year_id on existing data
         conn.execute(text(
             "UPDATE grades SET academic_year_id = :y WHERE academic_year_id IS NULL"
         ), {"y": active_year_id})

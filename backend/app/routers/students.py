@@ -72,7 +72,6 @@ async def get_my_students(
             joinedload(models.Student.class_group)
         ).filter(models.Student.class_id.in_(class_ids)).all()
         
-        # Дедупликация по email пользователя (решает проблему дублей с разными user_id)
         seen_emails = set()
         unique_students = []
         for s in students:
@@ -138,13 +137,21 @@ def create_student(data: dict, db: Session = Depends(get_db), current_user: dict
     existing = db.query(models.User).filter(models.User.email == email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email уже используется")
+        # Получить данные завуча (текущего пользователя)
+    admin_user = db.query(models.User).filter(models.User.email == current_user["email"]).first()
+    if not admin_user:
+        raise HTTPException(status_code=404, detail="Завуч не найден")
 
     try:
         user = models.User(
             full_name=data.get("full_name", "Новый ученик"),
             email=email,
             hashed_password=get_password_hash(data.get("password", "student123")),
-            role="student"
+            role="student",
+            school=admin_user.school,
+            city=admin_user.city,
+            academic_year=admin_user.academic_year,
+            position="Ученик"
         )
         db.add(user)
         db.flush()

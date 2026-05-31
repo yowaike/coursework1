@@ -1,4 +1,4 @@
-// Кабинет учителя: свои классы, выставление оценок и расписание
+// Кабинет учителя
 const TeacherCabinet = () => {
     const [teacher, setTeacher] = React.useState(null)
     const [schedule, setSchedule] = React.useState([])

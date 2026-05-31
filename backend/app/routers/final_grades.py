@@ -17,7 +17,6 @@ def _active_year_id(db: Session) -> int:
 
 
 def recalculate_final_grade(db: Session, student_id: int, subject_id: int, academic_year_id: int) -> models.FinalGrade:
-    # Среднее из четвертных оценок (grade_type=quarter) -> округление до ближайшего целого
     avg_val = db.query(func.avg(models.Grade.grade_value)).filter(
         models.Grade.student_id == student_id,
         models.Grade.subject_id == subject_id,
@@ -37,7 +36,6 @@ def recalculate_final_grade(db: Session, student_id: int, subject_id: int, acade
     ).first()
 
     if fg and fg.is_override:
-        # override не трогаем, но сохраняем calculated_from_term_avg для прозрачности
         fg.calculated_from_term_avg = calculated
         db.commit()
         db.refresh(fg)

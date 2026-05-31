@@ -7,7 +7,7 @@ from ..schemas import SubjectCreate, SubjectUpdate
 
 router = APIRouter()
 
-# получить предметы (роль-зависимая выборка)
+# получить предметы
 @router.get("/")
 async def get_subjects(
     db: Session = Depends(get_db),

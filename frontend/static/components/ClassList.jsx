@@ -1,4 +1,4 @@
-// компонент справочника классов в элитном стиле
+// компонент справочника классов
 const ClassList = () => {
     const [classes, setClasses] = React.useState([])
     const [showForm, setShowForm] = React.useState(false)

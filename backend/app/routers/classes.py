@@ -75,28 +75,21 @@ async def delete_class(class_id: int, db: Session = Depends(get_db), user: dict 
     if not cls:
         raise HTTPException(status_code=404, detail="Класс не найден")
 
-    # 1. Найти всех учеников этого класса
     students = db.query(models.Student).filter(models.Student.class_id == class_id).all()
     for student in students:
-        # Удаляем все связанные данные ученика
         db.query(models.Grade).filter(models.Grade.student_id == student.id).delete()
         db.query(models.FinalGrade).filter(models.FinalGrade.student_id == student.id).delete()
         db.query(models.Note).filter(models.Note.student_id == student.id).delete()
         db.query(models.Notification).filter(models.Notification.user_id == student.user_id).delete()
-        # Удаляем ученика
         db.delete(student)
-        # Удаляем пользователя, если он студент
         user_acc = db.query(models.User).filter(models.User.id == student.user_id, models.User.role == "student").first()
         if user_acc:
             db.delete(user_acc)
 
-    # 2. Удаляем расписание этого класса
     db.query(models.Schedule).filter(models.Schedule.class_id == class_id).delete()
 
-    # 3. Удаляем нагрузку учителей для этого класса
     db.query(models.TeacherAssignment).filter(models.TeacherAssignment.class_id == class_id).delete()
 
-    # 4. Теперь можно удалить сам класс
     db.delete(cls)
     db.commit()
     return {"message": "Класс удалён"}
