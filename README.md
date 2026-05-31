@@ -38,28 +38,40 @@
 - Расписание класса  
 - Личные заметки + заметки от учителя/завуча
 
-## Локальный запуск
+##  Локальный запуск
 
 1. **Установите зависимости**  
    ```bash
    pip install -r backend/requirements.txt
+   ```
 
-2. Настройте базу данных:
-    Создайте файл .env в папке backend (пример в .env.example): 
-    DATABASE_URL=postgresql://postgres:1234@127.0.0.1:5432/school_diary
+2. **Настройте базу данных**  
+   Создайте файл `.env` в папке `backend` (пример в `.env.example`):  
+   ```env
+   DATABASE_URL=postgresql://postgres:1234@127.0.0.1:5432/school_diary
+   ```
 
-3. Инициализируйте базу данных:
-    cd backend
-    python init_db.py
+3. **Инициализируйте базу данных**  
+   ```bash
+   cd backend
+   python init_db.py
+   ```
 
-4. Заполните демо‑данными (оценки, расписание):
-    python populate_test_data.py
+4. **Заполните демо‑данными (оценки, расписание)**  
+   ```bash
+   python populate_test_data.py
+   ```
 
-5. Запустите сервер:
-    python -m uvicorn app.main:app --reload
+5. **Запустите сервер**  
+   ```bash
+   python -m uvicorn app.main:app --reload
+   ```
 
-6. Откройте в браузере:
-    http://127.0.0.1:8000
+6. **Откройте в браузере**  
+   ```
+   http://127.0.0.1:8000
+   ```
+```
 
 **Тестовые аккаунты**:
 - `admin@school.ru` / `admin123` - завуч
